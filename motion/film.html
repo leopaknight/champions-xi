@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>7 Estrelas — filme</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  :root {
+    --bg: #070a10; --panel: #1a222c; --line: #263140; --text: #f3f6f9;
+    --muted: #8b98a9; --accent: #ffd60a; --pitch: #0e3d24; --pitch-2: #124a2c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--bg); }
+  #stage { position: absolute; inset: 0; overflow: hidden; background: var(--bg); color: var(--text);
+           font-family: "Inter", sans-serif; }
+  .abs { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+  .disp { font-family: "Poppins", sans-serif; font-weight: 900; line-height: .92; letter-spacing: -2px; }
+  .ui { font-family: "Inter", sans-serif; font-weight: 700; text-transform: uppercase; letter-spacing: 5px; }
+
+  /* A: gancho */
+  #kicker { font-size: 38px; color: var(--accent); }
+  .qw { font-size: 150px; white-space: nowrap; }
+  #reel { height: 330px; display: flex; gap: 6px; }
+  .col { width: 225px; height: 330px; overflow: hidden; position: relative; background: var(--panel); border-radius: 22px; }
+  .strip { position: absolute; left: 0; top: 0; width: 100%; }
+  .strip div { height: 330px; display: flex; align-items: center; justify-content: center;
+               font-family: "Poppins"; font-weight: 900; font-size: 290px; line-height: 1; padding-top: 22px; }
+  #reelBar { height: 14px; background: var(--accent); width: 918px; border-radius: 7px; }
+  #die { width: 210px; height: 210px; transform-origin: 50% 50%; }
+  .face { width: 100%; height: 100%; background: #f3f6f9; border-radius: 40px; position: relative; }
+  .pip { position: absolute; width: 38px; height: 38px; border-radius: 50%; background: var(--bg); }
+
+  /* B/C: cabeçalho + campo */
+  #club { font-size: 196px; white-space: nowrap; }
+  #club span { display: inline-block; }
+  #opp { font-size: 44px; color: var(--muted); letter-spacing: 3px; white-space: nowrap; }
+  #opp b { color: var(--text); }
+  #hint { font-size: 34px; color: var(--bg); background: var(--accent); padding: 18px 26px; border-radius: 14px; white-space: nowrap; }
+  #force { text-align: right; width: 340px; }
+  #force .ui { font-size: 28px; color: var(--muted); }
+  #forceNum { font-family: "Poppins"; font-weight: 900; font-size: 120px; line-height: 1; color: var(--accent); }
+  #pitch { width: 920px; height: 1000px; }
+  .slot { position: absolute; height: 120px; border-radius: 18px; border: 3px dashed rgba(255,255,255,.35);
+          background: rgba(7,10,16,.35); display: flex; flex-direction: column; justify-content: center; padding-left: 22px;
+          transform-origin: 50% 50%; }
+  .slot .p { font-size: 22px; color: rgba(255,255,255,.6); letter-spacing: 3px; }
+  .chip { position: absolute; height: 120px; border-radius: 18px; background: var(--panel); border-left: 12px solid var(--accent);
+          display: flex; flex-direction: column; justify-content: center; padding-left: 20px; transform-origin: 50% 50%; }
+  .chip .p { font-size: 24px; color: var(--accent); letter-spacing: 3px; }
+  .chip .n { font-family: "Poppins"; font-weight: 800; font-size: 36px; line-height: 1.1; white-space: nowrap; }
+  #btn { width: 920px; height: 150px; border-radius: 75px; background: var(--accent); color: var(--bg);
+         display: flex; align-items: center; justify-content: center; font-family: "Poppins"; font-weight: 900; font-size: 58px;
+         letter-spacing: 1px; transform-origin: 50% 50%; }
+  #tap { width: 200px; height: 200px; border-radius: 50%; border: 10px solid var(--text); transform-origin: 50% 50%; }
+
+  /* E: placar */
+  #scoreBg { width: 1080px; height: 1920px; background: var(--accent); }
+  .sc { font-size: 560px; color: var(--bg); letter-spacing: -20px; }
+  .gw { font-size: 150px; color: var(--bg); white-space: nowrap; }
+  #avg { font-size: 54px; color: var(--bg); letter-spacing: 2px; text-transform: none; }
+
+  /* F: montagem */
+  .card .y { font-family: "Poppins"; font-weight: 900; font-size: 400px; line-height: .9; color: var(--accent); letter-spacing: -14px; }
+  .card .c { font-family: "Poppins"; font-weight: 900; line-height: 1; white-space: nowrap; }
+  .card .o { font-size: 40px; color: var(--muted); margin-top: 26px; }
+  #ticks { display: flex; gap: 8px; }
+  #ticks div { width: 21px; height: 70px; border-radius: 4px; background: var(--line); }
+  #ticks div.on { background: var(--accent); }
+  #finals { font-size: 44px; }
+
+  /* G: CTA */
+  #big7 { font-size: 900px; color: var(--accent); letter-spacing: -30px; line-height: .8; }
+  #estrelas { font-size: 196px; }
+  .cta { font-size: 76px; font-family: "Poppins"; font-weight: 800; white-space: nowrap; }
+  .cta.m { color: var(--muted); }
+  #btn2 { width: 640px; height: 150px; border-radius: 75px; background: var(--accent); color: var(--bg);
+          display: flex; align-items: center; justify-content: center; font-family: "Poppins"; font-weight: 900; font-size: 56px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="../data.js"></script>
+<script>
+// ---------- utilidades ------------------------------------------------------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = k => 1 - Math.pow(1 - k, 3);
+const eIn = k => k * k * k;
+const eIO = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const eBack = k => { const c = 1.9; return 1 + (c + 1) * Math.pow(k - 1, 3) + c * Math.pow(k - 1, 2); };
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// ruído determinístico por (semente, índice) — sem estado entre frames
+const noise = (seed, i) => mulberry32(seed * 7919 + i)() * 2 - 1;
+
+// grid medido (beats.json injetado pelo render.mjs); fallback 120 BPM
+const G = window.BEATS || { period: 0.5, offset: 0 };
+const T = b => G.offset + b * G.period;       // tempo da batida b
+
+const S = document.getElementById("stage");
+function el(tag, cls, parent = S, html = "") {
+  const e = document.createElement(tag); if (cls) e.className = cls; e.innerHTML = html; parent.appendChild(e); return e;
+}
+function put(e, { x = 0, y = 0, s = 1, sx, sy, r = 0, o = 1, show = true, clip } = {}) {
+  e.style.display = show && o > 0.001 ? "" : "none";
+  if (!show) return;
+  e.style.transform = `translate(${x}px,${y}px) rotate(${r}deg) scale(${sx ?? s},${sy ?? s})`;
+  e.style.opacity = o;
+  e.style.clipPath = clip || "none";
+}
+function fitW(text, size, family = "Poppins", weight = 900) {
+  const c = document.createElement("canvas").getContext("2d");
+  c.font = `${weight} ${size}px ${family}`; return c.measureText(text).width;
+}
+const NICK = { "Alisson Becker": "Alisson", "Trent Alexander-Arnold": "Trent" };
+const short = n => { if (NICK[n]) return NICK[n]; const w = n.split(" "); return w.length > 2 ? w.slice(-2).join(" ") : w.at(-1); };
+function fitFont(text, family, weight, maxW, maxSize) {
+  const c = document.createElement("canvas").getContext("2d");
+  c.font = `${weight} ${maxSize}px ${family}`;
+  const w = c.measureText(text).width;
+  return Math.min(maxSize, Math.floor(maxSize * maxW / w));
+}
+
+// ---------- dados -------------------------------------------------------------
+const FINAL = CHAMPIONS.find(c => c.year === 2019);
+const ORDER = ["GK", "DEF", "MID", "FWD"];
+const LABEL = { GK: "GOL", DEF: "ZAG/LAT", MID: "MEIA", FWD: "ATAQUE" };
+const players = ORDER.flatMap(p => FINAL.players.filter(x => x.pos === p));
+const MONTAGE = [1995, 1999, 2004, 2012, 2020].map(y => CHAMPIONS.find(c => c.year === y));
+
+// fontes carregadas antes de medir texto e montar a cena
+window.READY = Promise.all(["900 100px Poppins", "800 100px Poppins", "700 100px Inter", "500 100px Inter"]
+  .map(f => document.fonts.load(f))).then(build);
+
+function build() {
+// ---------- construção da cena (uma vez) -------------------------------------
+const kicker = el("div", "abs ui", S, "Role o dado");
+const qWords = ["VOCÊ", "ESCALA", "O TIME", "CAMPEÃO?"].map(w => el("div", "abs disp qw", S, w));
+
+const reel = el("div", "abs", S); reel.id = "reel";
+const target = String(FINAL.year).split("").map(Number);
+const strips = target.map(() => {
+  const col = el("div", "col", reel); const st = el("div", "strip", col);
+  for (let k = 0; k < 30; k++) el("div", "", st, String(k % 10));
+  return st;
+});
+const reelBar = el("div", "abs", S); reelBar.id = "reelBar";
+
+const PIPS = { 1: [[.5,.5]], 2: [[.27,.27],[.73,.73]], 3: [[.27,.27],[.5,.5],[.73,.73]],
+  4: [[.27,.27],[.73,.27],[.27,.73],[.73,.73]], 5: [[.27,.27],[.73,.27],[.5,.5],[.27,.73],[.73,.73]],
+  6: [[.27,.25],[.73,.25],[.27,.5],[.73,.5],[.27,.75],[.73,.75]] };
+function makeDie() {
+  const d = el("div", "abs", S); d.id = "die"; const f = el("div", "face", d);
+  d.setFace = n => { if (d._n === n) return; d._n = n; f.innerHTML = "";
+    PIPS[n].forEach(([px, py]) => { const p = el("div", "pip", f); p.style.left = (px * 210 - 19) + "px"; p.style.top = (py * 210 - 19) + "px"; }); };
+  return d;
+}
+const die = makeDie();
+
+const club = el("div", "abs disp", S); club.id = "club";
+club.style.fontSize = fitFont(FINAL.club.toUpperCase(), "Poppins", 900, 900, 196) + "px";
+const clubLetters = FINAL.club.toUpperCase().split("").map(ch => el("span", "", club, ch));
+const opp = el("div", "abs ui", S, `vs ${FINAL.opponent} · <b>${FINAL.score.replace("-", "–")}</b>`); opp.id = "opp";
+const hint = el("div", "abs ui", S, "11 titulares. Posição certa."); hint.id = "hint";
+
+const pitch = el("div", "abs", S); pitch.id = "pitch";
+pitch.innerHTML = `<svg width="920" height="1000" viewBox="0 0 920 1000" style="position:absolute;left:0;top:0">
+  <defs><pattern id="mow" width="920" height="200" patternUnits="userSpaceOnUse">
+    <rect width="920" height="100" fill="#0e3d24"/><rect y="100" width="920" height="100" fill="#124a2c"/></pattern></defs>
+  <rect id="turf" x="0" y="0" width="920" height="1000" rx="28" fill="url(#mow)"/>
+  <g id="lines" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="5">
+    <rect x="30" y="30" width="860" height="940" rx="6" pathLength="1"/>
+    <line x1="30" y1="500" x2="890" y2="500" pathLength="1"/>
+    <circle cx="460" cy="500" r="110" pathLength="1"/>
+    <rect x="230" y="30" width="460" height="170" pathLength="1"/>
+    <rect x="230" y="800" width="460" height="170" pathLength="1"/>
+  </g></svg>`;
+const turf = pitch.querySelector("#turf");
+const lineEls = [...pitch.querySelectorAll("#lines > *")];
+
+// slots: FWD em cima (como no app), GOL embaixo
+const ROWS = { FWD: 70, MID: 330, DEF: 590, GK: 830 };
+const slotPos = {};
+const slots = [];
+["FWD", "MID", "DEF", "GK"].forEach(pos => {
+  const list = players.filter(p => p.pos === pos);
+  const n = list.length, gap = 14, w = n === 4 ? 206 : n === 3 ? 278 : 300;
+  const total = n * w + (n - 1) * gap, x0 = (920 - total) / 2;
+  list.forEach((p, i) => {
+    const x = x0 + i * (w + gap), y = ROWS[pos];
+    const s = el("div", "slot", pitch, `<div class="p ui">${LABEL[pos]}</div>`);
+    s.style.left = x + "px"; s.style.top = y + "px"; s.style.width = w + "px";
+    slots.push({ el: s, idx: players.indexOf(p) });
+    slotPos[players.indexOf(p)] = { x, y, w };
+  });
+});
+const chips = players.map((p, i) => {
+  const c = el("div", "chip", pitch, `<div class="p ui">${LABEL[p.pos]}</div><div class="n">${short(p.name)}</div>`);
+  const sp = slotPos[i]; c.style.left = sp.x + "px"; c.style.top = sp.y + "px"; c.style.width = sp.w + "px";
+  const nm = c.querySelector(".n"); nm.style.fontSize = fitFont(short(p.name), "Poppins", 800, sp.w - 46, 40) + "px";
+  return c;
+});
+const force = el("div", "abs", S, `<div class="ui">Força do time</div><div id="forceNum">0</div>`); force.id = "force";
+const forceNum = force.querySelector("#forceNum");
+const btn = el("div", "abs", S, "SIMULAR PARTIDA"); btn.id = "btn";
+const tap = el("div", "abs", S); tap.id = "tap";
+
+// E
+const scoreBg = el("div", "abs", S); scoreBg.id = "scoreBg";
+const scSize = fitFont("7–0", "Poppins", 900, 900, 560);
+const sc7 = el("div", "abs disp sc", S, "7");
+const sc0 = el("div", "abs disp sc", S, "–0");
+[sc7, sc0].forEach(e => e.style.fontSize = scSize + "px");
+const sc0X = 70 + fitW("7", scSize) - 10;
+const gw = ["GOLEADA", "HISTÓRICA"].map(w => el("div", "abs disp gw", S, w));
+const avgVal = players.reduce((s, p) => s + p.rating, 0) / players.length;
+const avg = el("div", "abs ui", S, ""); avg.id = "avg";
+
+// F
+const cards = MONTAGE.map(c => {
+  const d = el("div", "abs card", S);
+  const name = c.club.toUpperCase();
+  d.innerHTML = `<div class="y">${c.year}</div><div class="c" style="font-size:${fitFont(name, "Poppins", 900, 920, 170)}px">${name}</div>
+    <div class="o ui">vs ${c.opponent} · ${c.score.replace("-", "–")}</div>`;
+  return d;
+});
+const ticks = el("div", "abs", S); ticks.id = "ticks";
+const tickEls = CHAMPIONS.map(() => el("div", "", ticks));
+const finals = el("div", "abs ui", S, `${CHAMPIONS.length} finais · ${CHAMPIONS[0].year}—${CHAMPIONS.at(-1).year}`); finals.id = "finals";
+
+// G
+const big7 = el("div", "abs disp", S, "7"); big7.id = "big7";
+const estrelas = el("div", "abs disp", S, "ESTRELAS"); estrelas.id = "estrelas";
+const cta1 = el("div", "abs cta", S, "Role o dado.");
+const cta2 = el("div", "abs cta m", S, "Escale o campeão.");
+const btn2 = el("div", "abs", S, "JOGAR AGORA"); btn2.id = "btn2";
+
+// ---------- seek(t): função pura do tempo ------------------------------------
+window.seek = function (t) {
+  const b = (t - G.offset) / G.period;          // posição em batidas
+
+  // tremor determinístico após impactos
+  let shx = 0, shy = 0;
+  for (const [hb, amp] of [[24, 26], [25, 18], [36, 22]]) {
+    const k = seg(b, hb, hb + 0.6);
+    if (k > 0 && k < 1) { const i = Math.floor(t * 60); const a = amp * (1 - k) ** 2; shx += noise(hb, i) * a; shy += noise(hb + 99, i) * a; }
+  }
+  S.style.transform = `translate(${shx}px,${shy}px)`;
+
+  // ===== A: gancho (b0–4) ====================================================
+  const aOut = eIn(seg(b, 4, 4.4));           // cabeçalho sai pra esquerda
+  put(kicker, { x: 80 - aOut * 1200, y: 150, show: b < 5, clip: `inset(0 ${100 - 100 * eOut(seg(b, -1, 0.4))}% 0 0)` });
+  const qT = [0, 0.5, 1, 1.5];
+  qWords.forEach((w, i) => {
+    const k = seg(b, qT[i], qT[i] + 0.35);
+    const vis = b >= qT[i] || i === 0;
+    const sIn = i === 0 ? 1 : lerp(1.35, 1, eBack(k));
+    const lineY = [215, 355, 495, 635][i], lineX = 80;
+    put(w, { x: lineX - aOut * (1300 + i * 120), y: lineY + (1 - eOut(k)) * (i ? 40 : 0), s: sIn, show: vis && b < 5.5 });
+  });
+  // fala "O TIME" e "CAMPEÃO?" na mesma linha: ajusta largura
+  // roleta: dígitos travam em 2.5, 3, 3.5, 4
+  const lockB = [2.5, 3, 3.5, 4];
+  const reelY = lerp(840, 210, eIO(seg(b, 4, 5)));
+  const reelS = lerp(1, 0.43, eIO(seg(b, 4, 5)));
+  const reelX = lerp(80, 80, 0);
+  put(reel, { x: reelX, y: reelY, s: reelS, show: b < 24 });
+  strips.forEach((st, i) => {
+    const k = clamp(b / lockB[i]);
+    const travel = 26 + i * 6;
+    const pos = target[i] + travel * (1 - eOut(k)) ;       // em dígitos
+    const land = seg(b, lockB[i], lockB[i] + 0.3);
+    const bounce = land > 0 && land < 1 ? Math.sin(land * Math.PI) * -0.08 : 0;
+    const p = ((pos % 10) + 10) % 10 + 10 + bounce;
+    st.style.transform = `translateY(${-p * 330}px)`;
+    st.style.color = b >= lockB[i] ? "var(--accent)" : "var(--text)";
+    st.style.filter = k < 1 ? `blur(${(1 - k) * 5}px)` : "none";
+  });
+  put(reelBar, { x: 80, y: 1185, sx: eOut(seg(b, 4, 4.4)) > 0 ? 1 - eIO(seg(b, 4, 4.6)) : eOut(seg(b, 2.5, 4)), sy: 1,
+                 show: b > 2.5 && b < 4.6 });
+  // dado: entra rolando pela direita, quica, para em 4 (= ano travado)
+  {
+    const k = seg(b, 0, 4);
+    const x = lerp(1250, 790, eOut(k));
+    const hop = Math.abs(Math.sin(k * Math.PI * 3)) * (1 - k) * 220;
+    const r = (1 - eOut(k)) * 900;
+    const face = b < 4 ? 1 + Math.floor(mulberry32(Math.floor(b * 4) + 3)() * 6) : 6;
+    die.setFace(face);
+    const out = eIn(seg(b, 4, 4.6));
+    put(die, { x: x + out * 600, y: 1330 - hop, r, show: b < 5 });
+  }
+
+  // ===== B: revela clube (b4–8) ===============================================
+  const clubFinal = { x: 80, y: 330, s: 0.5 };
+  const shrink = eIO(seg(b, 7.5, 8.3));
+  put(club, { x: 80, y: lerp(560, clubFinal.y, shrink), s: lerp(1, clubFinal.s, shrink),
+              show: b >= 4.5 && b < 23.5, });
+  clubLetters.forEach((sp, i) => {
+    const k = eOut(seg(b, 4.5 + i * 0.25, 4.5 + i * 0.25 + 0.3));
+    sp.style.transform = `translateY(${(1 - k) * 200}px)`;
+    sp.style.clipPath = "none";
+  });
+  club.style.clipPath = "inset(-20px -40px 0 -40px)";
+  put(opp, { x: 80, y: lerp(770, 440, shrink), s: lerp(1, 0.82, shrink),
+             clip: `inset(-10px ${100 - 100 * eOut(seg(b, 6, 6.5))}% -10px 0)`, show: b >= 6 && b < 23.5 });
+  put(hint, { x: 80, y: 880, sy: eBack(seg(b, 7, 7.35)), sx: 1, show: b >= 7 && b < 8.2,
+              clip: `inset(0 0 ${100 * eIn(seg(b, 7.9, 8.2))}% 0)` });
+
+  // ===== C: campo (b8–21) =====================================================
+  const pitchIn = seg(b, 8, 8.6);
+  const push = lerp(1, 1.03, eIO(seg(b, 9, 21)));
+  const whip = eIn(seg(b, 23, 24));
+  const pitchY = 560 - whip * 2400;
+  put(pitch, { x: 80 + 460 * (1 - push), y: pitchY + 500 * (1 - push), s: push, show: b >= 8 && b < 24 });
+  turf.setAttribute("clip-path", "");
+  pitch.querySelector("svg").style.clipPath = `inset(0 0 ${100 - 100 * eOut(pitchIn)}% 0 round 28px)`;
+  lineEls.forEach((ln, i) => {
+    const k = eIO(seg(b, 8.2 + i * 0.12, 9.2 + i * 0.12));
+    ln.setAttribute("stroke-dasharray", "1 1"); ln.setAttribute("stroke-dashoffset", String(1 - k));
+  });
+  slots.forEach((s, i) => {
+    const k = seg(b, 8.6 + i * 0.06, 8.9 + i * 0.06);
+    s.el.style.transform = `scale(${eBack(k)})`;
+    s.el.style.opacity = k > 0 ? 1 : 0;
+  });
+  let sum = 0, cnt = 0;
+  chips.forEach((c, i) => {
+    const land = 9 + i;                    // um jogador por batida: b9..b19
+    const k = seg(b, land - 0.7, land);
+    const sp = slotPos[i];
+    const fromY = 1500 - sp.y, fromX = (i % 2 ? 1 : -1) * 120;
+    const punch = seg(b, land, land + 0.35);
+    const sc = punch > 0 ? 1 + 0.14 * Math.sin(punch * Math.PI) : lerp(0.9, 1, eOut(k));
+    c.style.transform = `translate(${(1 - eOut(k)) * fromX}px,${(1 - eOut(k)) * fromY}px) scale(${sc}) rotate(${(1 - eOut(k)) * (i % 2 ? 8 : -8)}deg)`;
+    c.style.display = b >= land - 0.7 ? "" : "none";
+    if (b >= land) { sum += players[i].rating; cnt++; }
+  });
+  // força: sobe até a média ao vivo
+  const fv = cnt ? sum / cnt : 0;
+  const lastLand = 9 + cnt - 1, fk = cnt ? eOut(seg(b, lastLand, lastLand + 0.4)) : 0;
+  const prev = cnt > 1 ? (sum - players[cnt - 1].rating) / (cnt - 1) : 0;
+  forceNum.textContent = lerp(prev, fv, fk).toFixed(1);
+  put(force, { x: 660, y: 150 - whip * 2400, clip: `inset(0 0 ${100 - 100 * eOut(seg(b, 8.5, 9))}% 0)`, show: b >= 8.5 && b < 24 });
+
+  // ===== D: botão simular (b20–24) ===========================================
+  const bIn = eBack(seg(b, 20, 20.6));
+  const press = seg(b, 22, 22.35);
+  const bs = press > 0 && press < 1 ? 1 - 0.08 * Math.sin(press * Math.PI) : 1;
+  put(btn, { x: 80, y: lerp(2000, 1620, bIn) - whip * 2400, s: bs, show: b >= 20 && b < 24 });
+  const tk = seg(b, 22, 22.8);
+  put(tap, { x: 440, y: 1595, s: lerp(0.2, 2.4, eOut(tk)), o: 1 - tk, show: b >= 22 && b < 22.8 });
+
+  // ===== E: placar (b24–31) ===================================================
+  const inE = b >= 24 && b < 31;
+  put(scoreBg, { show: inE, clip: `inset(0 0 ${100 * eIn(seg(b, 30.5, 31))}% 0)` });
+  const s7 = seg(b, 24, 24.25), s0 = seg(b, 25, 25.25);
+  put(sc7, { x: 70, y: 360, s: lerp(1.6, 1, eOut(s7)), show: inE });
+  put(sc0, { x: sc0X, y: 360, s: lerp(1.6, 1, eOut(s0)), show: inE && b >= 25 });
+  gw.forEach((w, i) => {
+    const k = seg(b, 26 + i * 0.5, 26.3 + i * 0.5);
+    put(w, { x: 80, y: 1040 + i * 150, clip: `inset(0 ${100 - 100 * eOut(k)}% 0 0)`, show: inE && b >= 26 + i * 0.5 });
+  });
+  const ak = eOut(seg(b, 28, 29.5));
+  avg.textContent = `Força média do time: ${(avgVal * ak).toFixed(1)}`;
+  put(avg, { x: 80, y: 1400, clip: `inset(0 ${100 - 100 * eOut(seg(b, 28, 28.4))}% 0 0)`, show: inE && b >= 28 });
+
+  // ===== F: montagem (b31–36) =================================================
+  cards.forEach((c, i) => {
+    const st = 31 + i;
+    const on = b >= st && b < st + 1 && b < 36;
+    const k = eOut(seg(b, st, st + 0.25));
+    put(c, { x: 80 + (1 - k) * 160, y: 520, show: on });
+  });
+  const tOn = Math.floor(lerp(0, CHAMPIONS.length, eIO(seg(b, 31, 35.6))));
+  tickEls.forEach((d, i) => d.classList.toggle("on", i < tOn));
+  put(ticks, { x: 80, y: 1360, show: b >= 31 && b < 36, clip: `inset(0 ${100 - 100 * eOut(seg(b, 31, 31.5))}% 0 0)` });
+  put(finals, { x: 80, y: 1470, show: b >= 31 && b < 36, clip: `inset(-10px ${100 - 100 * eOut(seg(b, 31.5, 32))}% -10px 0)` });
+
+  // ===== G: CTA (b36–43) ======================================================
+  const g7 = seg(b, 36, 36.3);
+  put(big7, { x: 50, y: 170, s: lerp(1.5, 1, eOut(g7)), show: b >= 36 });
+  put(estrelas, { x: 80, y: 860, clip: `inset(-20px ${100 - 100 * eOut(seg(b, 36.5, 37))}% -20px 0)`, show: b >= 36.5 });
+  put(cta1, { x: 80, y: 1100 + (1 - eOut(seg(b, 37.5, 37.8))) * 50, clip: `inset(0 0 ${100 - 100 * eOut(seg(b, 37.5, 37.8))}% 0)`, show: b >= 37.5 });
+  put(cta2, { x: 80, y: 1200 + (1 - eOut(seg(b, 38.5, 38.8))) * 50, clip: `inset(0 0 ${100 - 100 * eOut(seg(b, 38.5, 38.8))}% 0)`, show: b >= 38.5 });
+  put(btn2, { x: 80, y: lerp(2000, 1380, eBack(seg(b, 39.5, 40.1))), show: b >= 39.5 });
+  if (b >= 40) {   // dado volta e para ao lado do 7
+    const k = seg(b, 40, 41);
+    const hop = Math.abs(Math.sin(k * Math.PI * 2.5)) * (1 - k) * 160;
+    die.setFace(b < 41 ? 1 + Math.floor(mulberry32(Math.floor(b * 4) + 11)() * 6) : 6);
+    put(die, { x: lerp(1250, 700, eOut(k)), y: 520 - hop, r: (1 - eOut(k)) * -720 + 8, show: true });
+  }
+};
+
+window.seek(0);
+return true;
+}
+window.DURATION = 21.5;
+window.FPS = 30;
+</script>
+</body>
+</html>
