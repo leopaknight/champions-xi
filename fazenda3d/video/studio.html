@@ -1,0 +1,64 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#0f2a1b;font-family:'Plus Jakarta Sans',Inter,sans-serif}
+#stage{position:absolute;inset:0;background:radial-gradient(1200px 700px at 30% 20%,#2c6a44,#0f2a1b 70%)}
+#app{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;background:#f4f1ea}
+body.phone #app{left:300px;top:118px;width:390px;height:844px;border-radius:44px}
+#bezel{display:none;position:absolute;left:286px;top:104px;width:418px;height:872px;border-radius:58px;background:#111;box-shadow:0 40px 80px rgba(0,0,0,.45),inset 0 0 0 3px #333}
+body.phone #bezel{display:block}
+#ov{position:absolute;inset:0;pointer-events:none}
+#spot{position:absolute;border-radius:18px;box-shadow:0 0 0 4px #f0a24f,0 0 0 9999px rgba(8,22,14,.42);opacity:0}
+#cur{position:absolute;left:0;top:0;width:34px;height:34px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+#rip{position:absolute;width:20px;height:20px;border-radius:50%;border:4px solid #f0a24f;opacity:0;transform:translate(-50%,-50%)}
+#cap{position:absolute;left:48px;bottom:44px;max-width:1040px;background:rgba(14,38,24,.93);color:#fff;border-radius:22px;padding:26px 34px 28px;box-shadow:0 24px 60px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);opacity:0}
+#cap.r{left:auto;right:48px}#cap.t{bottom:auto;top:110px}
+body.phone #cap{left:800px;right:auto;bottom:auto;top:250px;max-width:980px}
+#cap .k{font:700 17px/1 'Plus Jakarta Sans';letter-spacing:.14em;text-transform:uppercase;color:#f0a24f;margin-bottom:12px;display:flex;gap:12px;align-items:center}
+#cap .k i{font-style:normal;background:#f0a24f;color:#13301f;border-radius:999px;padding:5px 11px;letter-spacing:.06em}
+#cap h2{font:800 38px/1.12 'Plus Jakarta Sans';letter-spacing:-.01em}
+#cap p{font:500 23px/1.45 'Plus Jakarta Sans';color:#dfe9e1;margin-top:10px}
+#cap p b{color:#fff}
+#card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;opacity:0;background:radial-gradient(1300px 800px at 50% 30%,#2f7047,#0d2416 72%)}
+#card img.logo{width:760px;filter:drop-shadow(0 20px 40px rgba(0,0,0,.4))}
+#card h1{font:800 64px/1.1 'Plus Jakarta Sans';letter-spacing:-.02em;max-width:1500px}
+#card .sub{font:500 30px/1.45 'Plus Jakarta Sans';color:#d6e6da;max-width:1350px;margin-top:22px}
+#card .kick{font:700 22px 'Plus Jakarta Sans';letter-spacing:.18em;text-transform:uppercase;color:#f0a24f;margin-bottom:22px}
+#card .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:48px;max-width:1600px;text-align:left}
+#card .grid.g2{grid-template-columns:repeat(2,1fr);max-width:1500px}
+#card .it{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:22px;padding:26px 30px;opacity:0;transform:translateY(16px)}
+#card .it b{display:block;font:800 28px/1.2 'Plus Jakarta Sans';margin-bottom:8px}
+#card .it span{font:500 21px/1.45 'Plus Jakarta Sans';color:#d3e2d7}
+#card .it em{font-style:normal;color:#f0a24f;font-weight:800}
+#card .note{position:absolute;bottom:40px;font:500 18px 'Plus Jakarta Sans';color:#9fbfaa}
+#side{display:none;position:absolute;left:800px;top:150px;color:#fff;font:800 22px 'Plus Jakarta Sans';letter-spacing:.16em;text-transform:uppercase}
+body.phone #side{display:block;color:#f0a24f}
+</style></head><body>
+<div id="stage"></div><div id="bezel"></div>
+<iframe id="app" src="app.html"></iframe>
+<div id="side">No celular, na lavoura</div>
+<div id="ov">
+  <div id="spot"></div>
+  <div id="cap"><div class="k"></div><h2></h2><p></p></div>
+  <div id="rip"></div>
+  <svg id="cur" viewBox="0 0 24 24"><path d="M4 2l16 9.5-7 1.6L10 20z" fill="#fff" stroke="#13301f" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  <div id="card"></div>
+</div>
+<script>
+const $=(s)=>document.querySelector(s);
+window.S={
+  cap(k,h,p,cls=''){const c=$('#cap');c.className=cls;c.querySelector('.k').innerHTML=k;c.querySelector('h2').innerHTML=h;c.querySelector('p').innerHTML=p||'';c.querySelector('p').style.display=p?'':'none';},
+  set(o){
+    if('capA' in o){const c=$('#cap');c.style.opacity=o.capA;c.style.transform=`translateY(${(1-o.capA)*18}px)`;}
+    if(o.cur){$('#cur').style.transform=`translate(${o.cur[0]-6}px,${o.cur[1]-3}px)`;}
+    if('curA' in o) $('#cur').style.opacity=o.curA;
+    if(o.rip){const r=$('#rip');r.style.left=o.rip[0]+'px';r.style.top=o.rip[1]+'px';r.style.width=r.style.height=(20+o.rip[2]*60)+'px';r.style.opacity=1-o.rip[2];}
+    if(o.spot){const s=$('#spot');const [x,y,w,h,a]=o.spot;Object.assign(s.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px',opacity:a});}
+    if('cardA' in o) $('#card').style.opacity=o.cardA;
+    if('items' in o) document.querySelectorAll('#card .it').forEach((e,i)=>{const a=Math.max(0,Math.min(1,o.items-i));e.style.opacity=a;e.style.transform=`translateY(${(1-a)*16}px)`;});
+  },
+  card(html){$('#card').innerHTML=html;},
+  phone(on){document.body.classList.toggle('phone',on);}
+};
+</script></body></html>
