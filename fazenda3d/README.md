@@ -1,4 +1,4 @@
-# Lavoura 3D Café
+# NexoCafé 3D
 
 Sistema de gestão de lavoura de café em 3D: ruas e plantas pé a pé, plano do ciclo
 completo, ordens de serviço, solo, pragas, irrigação por gotejamento (bombas, válvulas,

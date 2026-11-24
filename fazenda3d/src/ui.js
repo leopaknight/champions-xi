@@ -7,7 +7,7 @@ import { TAREFA, FASE, STATUS_OS, STATUS_ATIVO, STATUS_PLANTA, TIPOS_EQUIP, PRAG
 import { estagio, faseAtual, taxaMmH } from './agro.js';
 import { telemetriaBomba, telemetriaRele, nivelReservatorio, setorIrrigando } from './sim.js';
 import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, compressRanges, expandRanges, debounce, uid, hash, sum, addDays } from './util.js';
-import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG, rowsThumb, ilus, RAMO_IMG } from './dom.js';
+import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG, rowsThumb, ilus, RAMO_IMG, LOGO_IMG, LOGO_IC } from './dom.js';
 import { VIEWS, NAV, situacaoRegiao } from './views.js';
 import { Forms } from './forms.js';
 
@@ -112,18 +112,18 @@ export class UI {
 
   shell() {
     const sb = (n) => `<button class="side-b" data-act="go" data-v="${n.id}" title="${esc(n.nome)}">${ic(n.ic)}<span>${esc(n.lado || n.nome)}</span></button>`;
-    const wm = `<div class="wm"><b>Lavoura 3D</b><i>Café</i></div>`;
+    const marca = `<img class="brand-img" src="${LOGO_IMG}" alt="NexoCafé 3D"><img class="brand-ic" src="${LOGO_IC}" alt="NexoCafé 3D">`;
     return `
 <div id="app">
   <aside class="side">
-    <div class="side-logo">${logoSVG()}${wm}</div>
+    <div class="side-logo">${marca}</div>
     <nav class="side-nav">${NAV.filter((n) => n.grupo === 'p').map(sb).join('')}</nav>
     <div class="side-sep">Mais</div>
     <nav class="side-nav side-sec">${NAV.filter((n) => n.grupo === 's').map(sb).join('')}</nav>
     <div class="side-art"><img class="ramo-img" src="${RAMO_IMG}" alt=""></div>
   </aside>
   <header class="top">
-    <div class="mob-logo">${logoSVG()}${wm}</div>
+    <div class="mob-logo">${marca}</div>
     <div class="mob-bar" id="mobBar"></div>
     <div class="top-t"><h1 id="pageTitle"></h1><p id="pageSub"></p></div>
     <div class="top-a">
@@ -607,7 +607,7 @@ export class UI {
   abrirMais() {
     const it = [['campo', 'Modo de Campo', 'dronescan'], ['manejo', 'Manejo do Café', 'calendario'], ['alertas', 'Previsão e Alertas', 'sol'], ['regioes', 'Regiões', 'lavoura'], ['equipamentos', 'Máquinas', 'trator'], ['solo', 'Solo e Fertilidade', 'solo'], ['fitossanidade', 'Pragas e Doenças', 'alertafolha'], ['colheita', 'Colheita', 'cereja'], ['irrigacao', 'Irrigação', 'aspersor'], ['manutencao', 'Manutenção', 'capacete'], ['trabalho', 'Máquinas trabalhando', 'satelite'], ['inventario', 'Levantamento', 'mapa2'], ['relatorios', 'Relatórios', 'grafico'], ['perfil', 'Perfil', 'checklist'], ['ajustes', 'Ajustes', 'relogio']];
     const nAl = this.alertas().length;
-    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Lavoura 3D Café</div><h2>Mais</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
+    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">NexoCafé 3D</div><h2>Mais</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
       <div class="m-b"><div class="mais-g">${it.map(([v, n, i]) => `<button data-act="go" data-v="${v}">${ilus(i)}<span>${n}</span>${v === 'alertas' && nAl ? `<i class="nb-badge">${nAl}</i>` : ''}</button>`).join('')}</div></div></div>`, 'fabsheet');
   }
   abrirMenuMapa() {

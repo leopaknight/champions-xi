@@ -1,3 +1,6 @@
+import LOGO_IMG from '../assets/logo.webp';
+import LOGO_IC from '../assets/logo-ic.webp';
+export { LOGO_IMG, LOGO_IC };
 import I_cereja from '../assets/ic/cereja.webp';
 import I_graos from '../assets/ic/graos.webp';
 import I_flor from '../assets/ic/flor.webp';

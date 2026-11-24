@@ -854,3 +854,12 @@ h2.sec.claro { display: flex; align-items: center; gap: 8px; }
 .rg-g { grid-template-columns: minmax(0, .7fr) minmax(0, 1.5fr) minmax(0, 1fr); }
 .rg-g b { font-size: 12.5px; line-height: 1.25; }
 @media (max-width: 760px) { .rg-thumb { width: 96px; height: 78px; } }
+/* marca NexoCafé 3D */
+.brand-img { display: block; height: auto; max-width: 100%; filter: drop-shadow(0 3px 6px rgba(0,0,0,.18)); }
+.brand-ic { display: none; width: 52px; height: auto; }
+.side-logo { justify-content: center; padding: 0 0 18px; }
+.side-logo .brand-img { width: 200px; }
+.mob-logo .brand-img { width: auto; height: 58px; }
+.hero-logo .brand-img { width: 170px; }
+@media (max-width: 1180px) and (min-width: 761px) { .side-logo .brand-img { display: none; } .side-logo .brand-ic { display: block; } }
+@media (max-width: 760px) { .top { padding-block: max(6px, env(safe-area-inset-top, 0px)) 6px; } }

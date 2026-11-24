@@ -1,6 +1,6 @@
-// Cache para uso offline no campo. Versão: mwu5kt4d
-const CACHE = 'lavoura3d-mwu5kt4d';
-const ARQ = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+// Cache para uso offline no campo. Versão: mwu5qikd
+const CACHE = 'nexocafe3d-mwu5qikd';
+const ARQ = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQ)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
