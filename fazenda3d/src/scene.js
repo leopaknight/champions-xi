@@ -88,7 +88,7 @@ export class Scene3D {
     this.labelRenderer = lr;
 
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.Fog('#d3dfe5', 1800, 9500);
+    this.scene.fog = new THREE.Fog('#d3dfe5', 3000, 12000);
     this.camera = new THREE.PerspectiveCamera(45, 1, 0.5, 20000);
     this.camera.position.set(0, 1400, 1500);
     this.hemi = new THREE.HemisphereLight('#dde9f5', '#6e4a30', 1);
@@ -106,7 +106,7 @@ export class Scene3D {
     ctl.minDistance = 3;
     ctl.maxDistance = 6500;
     ctl.zoomSpeed = 1.2;
-    ctl.addEventListener('change', () => { this.dirty = true; this.updateLabelVisibility(); });
+    ctl.addEventListener('change', () => { this.dirty = true; this.updateLabelVisibility(); this.hooks.onCamera?.(); });
     this.controls = ctl;
 
     this.root = new THREE.Group();
@@ -601,15 +601,75 @@ export class Scene3D {
 
   buildRegionLabels(farm) {
     this.regionLabels = [];
+    this.regionLabelById = new Map();
     for (const reg of farm.regions) {
-      const l = this.label(reg.nome, 'lab lab-reg');
+      const l = this.label('', 'lab lab-reg');
+      l.element.innerHTML = `<span class="lr-pin"><svg viewBox="0 0 24 24"><path d="M12 21s7-6 7-11a7 7 0 00-14 0c0 5 7 11 7 11z"/></svg></span><span class="lr-t"><b></b><small></small></span><span class="lr-go">›</span>`;
+      l.element.querySelector('b').textContent = reg.nome;
+      l.element.querySelector('small').textContent = `${reg.areaHa.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ha`;
       l.element.style.setProperty('--c', reg.cor);
+      l.element.addEventListener('pointerdown', (e) => e.stopPropagation());
+      l.element.addEventListener('click', (e) => { e.stopPropagation(); this.hooks.onRegion?.(reg.id); });
       l.position.copy(this.W(reg.centro[0], reg.centro[1], 12));
-      l.userData.maxDist = 99999;
       l.userData.minDist = 0;
       this.root.add(l);
       this.regionLabels.push(l);
+      this.regionLabelById.set(reg.id, l);
     }
+  }
+
+  // Região em destaque: preenchimento verde translúcido e contorno luminoso
+  setRegiaoDestaque(id) {
+    if (this.destaque) { this.root.remove(this.destaque); this.destaque.traverse((o) => o.geometry?.dispose?.()); this.destaque = null; }
+    for (const [rid, l] of this.regionLabelById || []) l.element.classList.toggle('sel', rid === id);
+    if (!id || !this.farm) { this.dirty = true; return; }
+    const reg = this.farm.regionById.get(id);
+    if (!reg) return;
+    const g = new THREE.Group();
+    const y = reg.altura + 0.25;
+    const fill = this.flatShape(reg.poly, y, '#6dff3c');
+    fill.material = new THREE.MeshBasicMaterial({ color: '#7dff4a', transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+    fill.receiveShadow = false;
+    g.add(fill);
+    const anel = [...reg.poly, reg.poly[0]];
+    const larg = Math.max(2.5, Math.sqrt(reg.areaHa) * 0.6);
+    for (const [w, op] of [[larg * 3, 0.22], [larg, 0.95]]) {
+      const r = this.ribbon(anel, w, y + 0.05, '#c4ff9a');
+      r.material = new THREE.MeshBasicMaterial({ color: '#c8ffa0', transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
+      g.add(r);
+    }
+    g.renderOrder = 3;
+    this.destaque = g;
+    this.root.add(g);
+    this.dirty = true;
+  }
+
+  // Vista panorâmica oblíqua (como foto de drone): fazenda inteira ou uma região
+  vistaPanoramica(regId = null, anim = true) {
+    if (!this.farm) return;
+    const b = this.farm.bounds;
+    const reg = regId ? this.farm.regionById.get(regId) : null;
+    const cx = reg ? reg.centro[0] : (b.x0 + b.x1) / 2, cy = reg ? reg.centro[1] : (b.y0 + b.y1) / 2;
+    const base = reg ? Math.sqrt(reg.areaHa * 1e4) * 2.3 : Math.max(b.w, b.h) * 0.78;
+    const d = base * Math.max(1, 1.15 / (this.camera.aspect || 1));
+    const alvo = this.W(cx, cy - (reg ? 0 : b.h * 0.04), 0);
+    const pos = alvo.clone().add(new THREE.Vector3(-0.32, 0.5, 0.8).normalize().multiplyScalar(d));
+    if (!anim) { this.camera.position.copy(pos); this.controls.target.copy(alvo); this.controls.update(); this.dirty = true; this.updateLabelVisibility(); return; }
+    this.anim = { t0: performance.now(), dur: 900, p0: this.camera.position.clone(), p1: pos, q0: this.controls.target.clone(), q1: alvo };
+  }
+
+  zoom(f) {
+    const t = this.controls.target;
+    const v = this.camera.position.clone().sub(t).multiplyScalar(f);
+    const d = clamp(v.length(), this.controls.minDistance, this.controls.maxDistance);
+    v.setLength(d);
+    this.anim = { t0: performance.now(), dur: 350, p0: this.camera.position.clone(), p1: t.clone().add(v), q0: t.clone(), q1: t.clone() };
+  }
+  azimute() { return this.controls.getAzimuthalAngle(); }
+  metrosPorPixel() {
+    const d = this.camera.position.distanceTo(this.controls.target);
+    const h = this.el.clientHeight || 1;
+    return (2 * d * Math.tan((this.camera.fov * Math.PI) / 360)) / h;
   }
 
   // ---------------------------------------------------------------- estado visual

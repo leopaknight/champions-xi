@@ -224,7 +224,9 @@ export function makeDemo(farm, hoje) {
     { id: 'VS-R2-S1', status: 'alerta', obs: 'Pressão abaixo do esperado' },
   ];
 
-  return { os, solo, contagens, colheita, lotes, manut, ativos, equip: EQUIP_DEMO };
+  // Histórico de produção (sacas beneficiadas por colheita) para os gráficos
+  const safras = [[S - 5, 3480], [S - 4, 2810], [S - 3, 3950], [S - 2, 3320]].map(([ano, sacas]) => ({ id: `demo-sf-${ano}`, ano, sacas, obs: 'Exemplo' }));
+  return { os, solo, contagens, colheita, lotes, manut, ativos, equip: EQUIP_DEMO, safras };
 }
 
 // Estado pé a pé de uma rua de exemplo (falhas, replantas, doentes)

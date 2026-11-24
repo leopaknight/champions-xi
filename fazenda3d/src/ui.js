@@ -7,7 +7,7 @@ import { TAREFA, FASE, STATUS_OS, STATUS_ATIVO, STATUS_PLANTA, TIPOS_EQUIP, PRAG
 import { estagio, faseAtual, taxaMmH } from './agro.js';
 import { telemetriaBomba, telemetriaRele, nivelReservatorio, setorIrrigando } from './sim.js';
 import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, compressRanges, expandRanges, debounce, uid, hash, sum, addDays } from './util.js';
-import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart } from './dom.js';
+import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG } from './dom.js';
 import { VIEWS, NAV } from './views.js';
 import { Forms } from './forms.js';
 
@@ -47,6 +47,8 @@ export class UI {
       qualidade: this.lerQualidade(),
       onPick: (hit, e) => this.onPick(hit, e),
       onHover: (hit, e) => this.onHover(hit, e),
+      onRegion: (id) => this.escolherRegiao(id),
+      onCamera: () => this.atualizarBussola(),
       onLento: (q) => {
         const prox = q === 'ultra' ? 'alta' : 'leve';
         this.setQualidade(prox);
@@ -60,10 +62,12 @@ export class UI {
     let last = performance.now();
     const tick = (t) => { const dt = (t - last) / 1000; last = t; this.sim.tick(dt); requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
-    setInterval(() => { if (this.mode === 'irrigacao') this.colorir(); if (this.view === 'irrigacao' || this.view === 'painel') this.renderView(); }, 60000);
+    setInterval(() => { if (this.mode === 'irrigacao') this.colorir(); if (this.view === 'irrigacao' || this.view === 'inicio') this.renderView(); }, 60000);
+    setInterval(() => this.carregarClima(), 15 * 60000);
     const h = (location.hash || '').slice(1);
-    if (h && NAV.some((n) => n.id === h)) this.go(h); else this.go('mapa');
-    window.addEventListener('hashchange', () => { const v = location.hash.slice(1) || 'mapa'; if (v !== this.view && NAV.some((n) => n.id === v)) this.go(v, false); });
+    if (h && (NAV.some((n) => n.id === h) || VIEWS[h])) this.go(h); else this.go('inicio');
+    window.addEventListener('hashchange', () => { const v = location.hash.slice(1) || 'inicio'; if (v !== this.view && (NAV.some((n) => n.id === v) || VIEWS[v])) this.go(v, false); });
+    this.carregarClima();
   }
 
   lerQualidade() {
@@ -80,6 +84,7 @@ export class UI {
     this.scene.setSelection(this.sel, { plantaSel: this.plantaSel });
     this.refreshAll();
     this.sim.emit();
+    this.renderHeader();
   }
 
   farmConfig() {
@@ -102,17 +107,36 @@ export class UI {
   }
 
   shell() {
-    const nav = NAV.map((n) => `<button class="nav-b" data-act="go" data-v="${n.id}" title="${esc(n.nome)}" aria-label="${esc(n.nome)}">${ic(n.ic)}<span>${esc(n.curto || n.nome)}</span></button>`).join('');
+    const sb = (n) => `<button class="side-b" data-act="go" data-v="${n.id}" title="${esc(n.nome)}">${ic(n.ic)}<span>${esc(n.lado || n.nome)}</span></button>`;
+    const wm = `<div class="wm"><b>Lavoura 3D</b><i>Café</i></div>`;
     return `
 <div id="app">
+  <aside class="side">
+    <div class="side-logo">${logoSVG()}${wm}</div>
+    <nav class="side-nav">${NAV.filter((n) => n.grupo === 'p').map(sb).join('')}</nav>
+    <div class="side-sep">Mais</div>
+    <nav class="side-nav side-sec">${NAV.filter((n) => n.grupo === 's').map(sb).join('')}</nav>
+    <div class="side-art">${ramoSVG()}</div>
+  </aside>
   <header class="top">
-    <div class="brand"><div class="brand-mark">${ic('planta')}</div><div class="brand-t"><b id="farmName"></b><small id="farmSub"></small></div></div>
-    <div class="modes" role="tablist">${MODOS.map((m) => `<button role="tab" class="mode-b" data-act="modo" data-m="${m.id}">${m.nome}</button>`).join('')}</div>
-    <div class="search"><span class="search-ic">${ic('busca')}</span><input id="q" type="search" placeholder="Rua, planta, cruzeta, bomba… (ex.: R2-L047)" autocomplete="off"><div id="qres" class="qres" hidden></div></div>
-    <label class="day" title="Dia de trabalho"><span>Dia</span><input id="dia" type="date"></label>
-    <span id="sync" class="sync"></span>
+    <div class="mob-logo">${logoSVG()}${wm}</div>
+    <div class="top-t"><h1 id="pageTitle"></h1><p id="pageSub"></p></div>
+    <div class="top-a">
+      <button class="chipsel" id="btnBusca" data-act="busca" aria-label="Buscar">${ic('busca')}<span>Buscar</span></button>
+      <button class="chipsel chip-faz" data-act="go" data-v="ajustes" title="Dados da fazenda">${ic('pino')}<span id="farmName"></span>${ic('chev')}</button>
+      <div class="pop-w chip-safra"><button class="chipsel" data-act="pop" data-p="safra">${ic('agenda')}<span id="safraTxt"></span>${ic('chev')}</button>
+        <div class="pop" id="pop-safra" hidden><h4>Ciclo da safra</h4><p class="small muted" id="safraInfo"></p><label class="fld"><span>Dia de trabalho (muda o plano, a agenda e os alertas)</span><input id="dia" type="date"></label></div></div>
+      <span id="sync" class="sync"></span>
+      <div class="pop-w"><button class="iconbtn" data-act="pop" data-p="alertas" aria-label="Alertas">${ic('sino')}<i id="bellBadge" hidden></i></button><div class="pop pop-r pop-al" id="pop-alertas" hidden></div></div>
+      <div class="pop-w avatar-w"><button class="iconbtn avatar" data-act="pop" data-p="conta" aria-label="Menu">${ic('usuario')}</button>
+        <div class="pop pop-r" id="pop-conta" hidden><div class="pop-l">
+          <button data-act="go" data-v="ajustes">${ic('config')} Ajustes da fazenda</button>
+          <button data-act="qualidade">${ic('camadas')} Qualidade do 3D: <b id="qualTxt"></b></button>
+          <button data-act="go" data-v="relatorios">${ic('relat')} Relatórios</button>
+          <button data-act="go" data-v="equipamentos">${ic('gps')} Máquinas e GPS</button>
+        </div></div></div>
+    </div>
   </header>
-  <nav class="rail">${nav}</nav>
   <main id="stage">
     <div id="map3d"></div>
     <div id="hud" class="hud">
@@ -138,7 +162,7 @@ export class UI {
     <section id="view" class="view" hidden></section>
     <aside id="drawer" class="drawer" hidden></aside>
   </main>
-  <nav class="bottom">${NAV.filter((n) => n.mob).map((n) => `<button class="nav-b" data-act="go" data-v="${n.id}">${ic(n.ic)}<span>${esc(n.curto || n.nome)}</span></button>`).join('')}<button class="nav-b" data-act="maisMenu">${ic('menu')}<span>Mais</span></button></nav>
+  <nav class="bottom">${NAV.filter((n) => n.mob).sort((a, b) => a.mob - b.mob).map((n) => `<button class="nav-b" data-act="go" data-v="${n.id}">${ic(n.mobIc || n.ic)}<span>${esc(n.mobNome || n.curto || n.nome)}</span></button>`).join('')}<button class="nav-b" data-act="maisMenu">${ic('menu')}<span>Mais</span></button></nav>
   <div id="maisMenu" class="mais" hidden>${NAV.filter((n) => !n.mob).map((n) => `<button data-act="go" data-v="${n.id}">${ic(n.ic)} ${esc(n.nome)}</button>`).join('')}</div>
   <div id="modal" class="modal" hidden></div>
   <div id="toast" class="toast" hidden></div>
@@ -149,7 +173,8 @@ export class UI {
   bind() {
     document.addEventListener('click', (e) => {
       const a = e.target.closest('[data-act]');
-      if (!a) { if (!e.target.closest('.search')) this.$('#qres').hidden = true; if (!e.target.closest('#maisMenu') && !e.target.closest('[data-act="maisMenu"]')) this.$('#maisMenu').hidden = true; return; }
+      if (!e.target.closest('.pop-w')) this.fecharPops();
+      if (!a) { if (!e.target.closest('#maisMenu') && !e.target.closest('[data-act="maisMenu"]')) this.$('#maisMenu').hidden = true; return; }
       const fn = this.acts[a.dataset.act];
       if (fn) { e.preventDefault(); fn.call(this, a.dataset, a, e); }
     });
@@ -157,9 +182,6 @@ export class UI {
       const a = e.target.closest('[data-chg]');
       if (a && this.chg[a.dataset.chg]) this.chg[a.dataset.chg].call(this, e.target, e);
     });
-    const q = this.$('#q');
-    q.addEventListener('input', debounce(() => this.buscar(q.value), 120));
-    q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { this.buscar(q.value); const f = this.$('#qres [data-act]'); if (f) f.click(); } if (e.key === 'Escape') { this.$('#qres').hidden = true; q.blur(); } });
     const dia = this.$('#dia');
     dia.value = this.model.hoje;
     dia.addEventListener('change', () => { if (!dia.value) return; this.model.hoje = dia.value; this.model.v++; this.model.cache = {}; this.rebuildFarm(); this.toast(`Dia de trabalho: ${fmtDate(dia.value)}`); });
@@ -169,7 +191,13 @@ export class UI {
   }
 
   acts = {
-    go(d) { this.go(d.v); this.$('#maisMenu').hidden = true; },
+    go(d) { this.go(d.v); this.$('#maisMenu').hidden = true; this.fecharPops(); },
+    busca() { this.abrirBusca(); },
+    pop(d) { const el = this.$('#pop-' + d.p); const abrir = el.hidden; this.fecharPops(); el.hidden = !abrir; if (abrir && d.p === 'alertas') this.renderAlertasPop(); },
+    regiao(d) { this.escolherRegiao(d.r); },
+    abrirRegiaoMapa(d) { this.go('mapa'); this.acts.selRegiao.call(this, { r: d.r }); },
+    mapCtl(d) { this.mapCtl(d.c); },
+    tarefaOk(d) { const o = this.model.osList().find((x) => x.id === d.id); if (!o) return; const st = o.status === 'concluida' ? 'execucao' : 'concluida'; this.store.put('os', { ...o, status: st }).then(() => this.toast(st === 'concluida' ? 'Tarefa concluída.' : 'Tarefa reaberta.')).catch(() => this.toast('Não foi salvo.')); },
     maisMenu() { const m = this.$('#maisMenu'); m.hidden = !m.hidden; },
     modo(d) { this.setMode(d.m); },
     cor(d) { this.cor[this.mode] = d.c; this.colorir(); this.renderHud(); },
@@ -231,11 +259,20 @@ export class UI {
   go(v, push = true) {
     this.view = v;
     if (push) { try { history.replaceState(null, '', v === 'mapa' ? location.pathname + location.search : '#' + v); } catch { /* ignore */ } }
-    document.querySelectorAll('.nav-b').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+    document.querySelectorAll('.nav-b, .side-b').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
     const viewEl = this.$('#view');
-    this.scene.labelRenderer.domElement.style.visibility = v === 'mapa' ? '' : 'hidden';
-    if (v === 'mapa') { viewEl.hidden = true; this.scene.paused = false; this.scene.dirty = true; this.scene.resize(); }
-    else { viewEl.hidden = false; this.renderView(); this.scene.paused = true; }
+    const mapEl = this.$('#map3d');
+    this.scene.labelRenderer.domElement.style.visibility = v === 'mapa' || v === 'inicio' ? '' : 'hidden';
+    this.$('#app').dataset.view = v;
+    if (v === 'mapa') {
+      if (mapEl.parentElement !== this.$('#stage')) this.$('#stage').prepend(mapEl);
+      mapEl.classList.remove('embed');
+      viewEl.hidden = true; this.scene.paused = false; this.scene.dirty = true;
+      this.scene.setRegiaoDestaque(null);
+      setTimeout(() => this.scene.resize(), 30);
+    } else { viewEl.hidden = false; this.renderView(); this.scene.paused = v !== 'inicio'; }
+    if (v !== 'inicio') this._iniCam = false;
+    this.renderHeader();
   }
   setMode(m) {
     this.mode = m;
@@ -251,7 +288,7 @@ export class UI {
   refreshAll() {
     const cfg = this.farmConfig();
     this.$('#farmName').textContent = cfg.nome;
-    this.$('#farmSub').textContent = `${num(this.farm.totais.areaHa, 1)} ha · ${this.farm.regions.length} regiões · ${num(this.farm.totais.ruas)} ruas`;
+    this.renderHeader();
     document.querySelectorAll('.mode-b').forEach((b) => b.classList.toggle('on', b.dataset.m === this.mode));
     this.colorir();
     this.scene.setAssetStatus((id) => this.model.assetStatus(id));
@@ -278,7 +315,7 @@ export class UI {
     const m = this.store.mode;
     const txt = m === 'compartilhado' ? 'Compartilhado' : m === 'conectando' ? 'Conectando…' : 'Neste aparelho';
     s.className = 'sync ' + (m === 'compartilhado' ? 'ok' : m === 'conectando' ? 'wait' : 'loc');
-    s.textContent = txt;
+    s.innerHTML = `${ic(m === 'compartilhado' ? 'nuvemok' : 'nuvem')}<span>${m === 'compartilhado' ? 'Online' : txt}</span>`;
     s.title = m === 'compartilhado' ? 'Os dados ficam no banco do artifact e aparecem para todos com acesso.' : m === 'conectando' ? 'Conectando ao banco compartilhado.' : 'Os dados ficam salvos só neste navegador. Faça backup em Ajustes.';
     if (this.store.erro) { s.className = 'sync bad'; s.title = this.store.erro; }
   }
@@ -288,9 +325,24 @@ export class UI {
     const el = this.$('#view');
     if (!v) return;
     const st = el.scrollTop;
+    const mapEl = this.$('#map3d');
+    if (el.contains(mapEl)) this.$('#stage').prepend(mapEl);
+    el.className = `view v-${this.view}`;
     try { el.innerHTML = `<div class="view-in">${v.render(this)}</div>`; }
     catch (err) { console.error(err); el.innerHTML = `<div class="view-in"><p class="erro">Não consegui montar esta tela: ${esc(err.message)}</p></div>`; }
     el.scrollTop = st;
+    const slot = el.querySelector('#mapSlot');
+    if (slot) {
+      slot.prepend(mapEl);
+      mapEl.classList.add('embed');
+      this.scene.paused = false;
+      this.scene.setRegiaoDestaque(this.regiaoSel || null);
+      setTimeout(() => {
+        this.scene.resize();
+        if (!this._iniCam) { this._iniCam = true; this.scene.vistaPanoramica(window.innerWidth <= 760 ? this.regiaoSel : null, false); }
+        this.atualizarBussola();
+      }, 30);
+    } else mapEl.classList.remove('embed');
     v.after?.(this, el);
   }
 
@@ -383,9 +435,10 @@ export class UI {
     } else { hf.hidden = true; hf.innerHTML = ''; }
     const sel = this.sel;
     const regs = this.farm.regions.map((r) => `<button class="mini" data-act="selRegiao" data-r="${r.id}" style="--c:${r.cor}">${esc(r.id)}</button>`).join('');
-    this.$('#hudSel').innerHTML = sel.length
+    const modos = `<div class="modes hud-modes" role="tablist">${MODOS.map((m) => `<button role="tab" class="mode-b ${m.id === this.mode ? 'on' : ''}" data-act="modo" data-m="${m.id}">${m.nome}</button>`).join('')}</div>`;
+    this.$('#hudSel').innerHTML = modos + (sel.length
       ? `<div class="sel-h"><b>${sel.length === 1 ? esc(sel[0]) : `${sel.length} ruas`}</b><button class="tb" data-act="limparSel">${ic('fechar')}<span>Limpar</span></button></div>`
-      : `<div class="sel-h"><span class="muted">Toque numa rua ou escolha a região</span></div><div class="mini-row">${regs}</div>`;
+      : `<div class="sel-h"><span class="muted">Toque numa rua ou escolha a região</span></div><div class="mini-row">${regs}</div>`);
     const selEl = this.$('#legend select');
     if (selEl) selEl.onchange = () => { this.cor[this.mode] = selEl.value; this.colorir(); this.renderHud(); };
   }
@@ -430,6 +483,13 @@ export class UI {
 
   onPick(hit, e) {
     if (this.cinema) { this.$('#cine').classList.toggle('oculto'); return; }
+    if (this.view === 'inicio') {
+      if (!hit) return;
+      if (hit.tipo === 'rua' || hit.tipo === 'planta') { const r = this.farm.rowById.get(hit.id || hit.row); if (r) this.escolherRegiao(r.reg); }
+      else if (hit.tipo === 'equip') this.acompanhar(hit.id);
+      else if (hit.tipo === 'ativo') { this.go('mapa'); this.openDrawer({ tipo: 'ativo', id: hit.id }); }
+      return;
+    }
     if (!hit) { if (!this.multi) { this.selecionar([]); this.closeDrawer(); } return; }
     if (hit.tipo === 'rua') {
       if (this.multi || e?.shiftKey || e?.ctrlKey || e?.metaKey) {
@@ -501,6 +561,113 @@ export class UI {
     if (mc) this.scene.flyToXY(mc.x, mc.y, 80, true, 0.6);
     this.openDrawer({ tipo: 'equip', id });
   }
+  // ------------------------------------------------------------------ cabeçalho
+  saudacao() { const h = new Date().getHours(); return h < 12 ? 'Bom dia!' : h < 18 ? 'Boa tarde!' : 'Boa noite!'; }
+  renderHeader() {
+    if (!this.farm) return;
+    const n = NAV.find((x) => x.id === this.view);
+    const t = this.$('#pageTitle'), sub = this.$('#pageSub');
+    if (this.view === 'inicio') { t.textContent = this.saudacao(); sub.textContent = 'Resumo da sua lavoura de café'; }
+    else { t.textContent = n ? n.nome : ''; sub.textContent = `${this.farmConfig().nome} · ${num(this.farm.totais.areaHa, 1)} ha`; }
+    const S = this.model.safra;
+    this.$('#safraTxt').textContent = `Safra ${S - 1}/${S}`;
+    const si = this.$('#safraInfo');
+    if (si) si.textContent = `Do pós-colheita de ${S - 1} à colheita de ${S}. Dia de trabalho: ${fmtDate(this.model.hoje)}.`;
+    const q = this.$('#qualTxt'); if (q) q.textContent = QUALIDADES[this.scene.qNome].nome;
+    const nAl = this.alertas().length;
+    const bb = this.$('#bellBadge'); if (bb) bb.hidden = !nAl;
+  }
+  alertas() {
+    const m = this.model, farm = this.farm;
+    const out = [];
+    for (const r of farm.regions) for (const a of m.fitoAtual(r.id)?.alertas || []) out.push({ nivel: 'bad', ic: 'fito', t: `${a.nome} · ${r.nome}`, s: `${num(a.v, 1)} ${a.un} (nível ${a.nc})`, act: 'go', arg: 'data-v="fitossanidade"' });
+    for (const x of m.manutAbertas().filter((x) => x.prioridade === 'Alta')) out.push({ nivel: 'bad', ic: 'manut', t: x.titulo, s: x.rua || x.ativo || '', act: 'manut', arg: `data-id="${x.id}"` });
+    for (const a of farm.assets.filter((a) => ['falha', 'alerta'].includes(m.assetStatus(a.id)))) out.push({ nivel: m.assetStatus(a.id) === 'falha' ? 'bad' : 'warn', ic: 'aviso', t: `${a.id} · ${STATUS_ATIVO[m.assetStatus(a.id)].nome}`, s: a.nome, act: 'ativo', arg: `data-id="${a.id}"` });
+    for (const r of farm.regions) { const p = m.pendenciasRegiao(r).filter((x) => x.st === 'atrasada'); if (p.length) out.push({ nivel: 'warn', ic: 'agenda', t: `${p.length} operação(ões) atrasada(s) · ${r.nome}`, s: p.map((x) => x.nome).slice(0, 2).join(', '), act: 'go', arg: 'data-v="agenda"' }); }
+    return out;
+  }
+  renderAlertasPop() {
+    const al = this.alertas();
+    this.$('#pop-alertas').innerHTML = `<h4>Alertas (${al.length})</h4>${al.length ? `<div class="al-list">${al.map((a) => `<button class="al-it ${a.nivel}" data-act="${a.act}" ${a.arg}>${ic(a.ic)}<span><b>${esc(a.t)}</b><small>${esc(a.s)}</small></span></button>`).join('')}</div>` : '<p class="muted">Nenhum alerta.</p>'}`;
+  }
+  fecharPops() { document.querySelectorAll('.pop').forEach((p) => (p.hidden = true)); }
+  abrirBusca() {
+    const box = this.modal(`<div class="pal-in">${ic('busca')}<input id="q" type="search" placeholder="Rua, planta, cruzeta, bomba, máquina… (ex.: R2-L047)" autocomplete="off"><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div><div id="qres" class="pal-res"><p class="muted">Exemplos: R2-L047 · R2 47 312 (planta 312) · CZ-R1-L088 · B-01 · VS-R3-S2 · TR-01</p></div>`, 'pal');
+    const q = box.querySelector('#q');
+    q.addEventListener('input', debounce(() => this.buscar(q.value), 100));
+    q.addEventListener('keydown', (e) => { if (e.key === 'Enter') { this.buscar(q.value); const f = box.querySelector('#qres [data-act]'); if (f) f.click(); } });
+    setTimeout(() => q.focus(), 30);
+  }
+
+  // ------------------------------------------------------------------ mapa na visão geral
+  escolherRegiao(id) {
+    this.regiaoSel = id;
+    this.scene.setRegiaoDestaque(id);
+    if (this.view === 'inicio') VIEWS.inicio.regiaoInfo?.(this);
+  }
+  mapCtl(c) {
+    const sc = this.scene;
+    if (c === '3d') { this.go('mapa'); return; }
+    if (c === 'ver') { sc.vistaPanoramica(null); return; }
+    if (c === 'mais') { sc.zoom(0.7); return; }
+    if (c === 'menos') { sc.zoom(1.4); return; }
+    if (c === 'pe') { const r = this.farm.regionById.get(this.regiaoSel || this.farm.regions[0].id); sc.flyToXY(r.centro[0], r.centro[1], 55, true, 0.35); return; }
+    if (c === 'cor') {
+      const ord = ['natural', 'plano', 'previsao', 'falhas'];
+      const modo = { natural: 'manejo', plano: 'manejo', falhas: 'manejo', previsao: 'colheita' };
+      const atual = this.mode === 'colheita' ? this.cor.colheita : this.cor.manejo;
+      const prox = ord[(ord.indexOf(atual) + 1) % ord.length];
+      if (modo[prox] !== this.mode) this.setMode(modo[prox]);
+      this.cor[this.mode] = prox;
+      this.colorir();
+      VIEWS.inicio.legenda?.(this, prox);
+    }
+  }
+  atualizarBussola() {
+    if (this.view !== 'inicio') return;
+    if (this._bussolaRaf) return;
+    this._bussolaRaf = requestAnimationFrame(() => {
+      this._bussolaRaf = null;
+      const b = document.getElementById('mcBus');
+      if (b) b.style.transform = `rotate(${(this.scene.azimute() * 180) / Math.PI}deg)`;
+      const e = document.getElementById('mcEsc');
+      if (e) {
+        const mpp = this.scene.metrosPorPixel();
+        const alvo = mpp * 150;
+        const p = Math.pow(10, Math.floor(Math.log10(alvo)));
+        const L = [1, 2, 5, 10].map((k) => k * p).filter((v) => v <= alvo).pop() || p;
+        const px = L / mpp;
+        const f = (v) => (v >= 1000 ? `${num(v / 1000, v % 1000 ? 1 : 0)} km` : `${num(v)} m`);
+        e.innerHTML = `<div class="lbl" style="width:${px}px"><span>0</span><span>${f(L / 2)}</span><span>${f(L)}</span></div><div class="bar" style="width:${px}px"></div>`;
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------ clima
+  async carregarClima() {
+    const o = this.farmConfig().origem;
+    const cfg = this.store.config();
+    const sim = () => {
+      const h = new Date().getHours() + new Date().getMinutes() / 60;
+      const t = 22 + 7 * Math.sin(((h - 9) / 24) * Math.PI * 2);
+      return { temp: t, ur: Math.round(78 - (t - 18) * 2.4), vento: Math.round(6 + 6 * Math.abs(Math.sin(h / 3))), chuva: 0, codigo: h > 11 && h < 17 ? 2 : 1, fonte: 'Estação da fazenda (simulado)', simulado: true };
+    };
+    this.clima = this.clima || sim();
+    if (cfg.climaOff) { this.clima = sim(); return; }
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${(+o.lat).toFixed(3)}&longitude=${(+o.lon).toFixed(3)}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&hourly=precipitation&past_hours=24&forecast_hours=1&timezone=America%2FSao_Paulo`;
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), 6000);
+      const r = await fetch(url, { signal: ctl.signal });
+      clearTimeout(to);
+      if (!r.ok) throw new Error('http ' + r.status);
+      const j = await r.json();
+      const chuva = (j.hourly?.precipitation || []).reduce((a, b) => a + (+b || 0), 0);
+      this.clima = { temp: j.current.temperature_2m, ur: j.current.relative_humidity_2m, vento: j.current.wind_speed_10m, chuva, codigo: j.current.weather_code, fonte: 'Open-Meteo', simulado: false };
+    } catch { this.clima = sim(); }
+    if (this.view === 'inicio') this.renderView();
+  }
+
   acompanhar(id) {
     const mc = this.sim.machines.find((x) => x.id === id);
     if (!mc) return this.toast('Máquina não encontrada.');
@@ -564,8 +731,9 @@ export class UI {
   // ------------------------------------------------------------------ busca
   buscar(q) {
     const box = this.$('#qres');
+    if (!box) return;
     q = q.trim().toUpperCase();
-    if (!q) { box.hidden = true; return; }
+    if (!q) return;
     const res = [];
     const farm = this.farm;
     let m = q.match(/^R?(\d)[\s\-_]*L?(\d{1,3})(?:[\s\-_]*P?(\d{1,4}))?$/);
@@ -586,8 +754,7 @@ export class UI {
     for (const e of this.model.equipList()) if (e.id.toUpperCase().includes(q) || e.nome.toUpperCase().includes(q)) res.push({ act: 'equip', id: e.id, t: e.id, s: e.nome });
     for (const r of farm.regions) if (r.id === q || r.nome.toUpperCase().includes(q)) res.push({ act: 'selRegiao', r: r.id, t: r.nome, s: `${num(r.areaHa, 1)} ha · ${r.nRows} ruas` });
     box.innerHTML = res.length ? res.slice(0, 14).map((x) => `<button data-act="${x.act}" ${x.id ? `data-id="${esc(x.id)}"` : ''} ${x.row ? `data-row="${esc(x.row)}" data-j="${x.j}"` : ''} ${x.r ? `data-r="${x.r}"` : ''}><b>${esc(x.t)}</b><small>${esc(x.s)}</small></button>`).join('') : `<p class="muted">Nada encontrado. Exemplos: R2-L047, R2 47 312, CZ-R1-L088, B-01, VS-R3-S2.</p>`;
-    box.hidden = false;
-    box.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { box.hidden = true; this.$('#q').value = ''; }));
+    box.querySelectorAll('button[data-act]').forEach((b) => b.addEventListener('click', () => this.closeModal()));
   }
 
   // ------------------------------------------------------------------ gaveta
@@ -844,6 +1011,7 @@ export class UI {
       }
       if (this.view === 'equipamentos') VIEWS.equipamentos.live?.(this);
       if (this.view === 'trabalho') VIEWS.trabalho.live?.(this);
+      if (this.view === 'inicio') VIEWS.inicio.live?.(this);
       if (this.seguir) this.liveFollow(ms);
       if (this.mode === 'colheita' && this.cor.colheita === 'colhidas' && now - (this._lastCol || 0) > 3000) { this._lastCol = now; this.colorir(); }
     }

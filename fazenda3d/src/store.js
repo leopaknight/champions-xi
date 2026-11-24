@@ -2,7 +2,7 @@
 // armazenamento local do navegador. Mesma interface nos dois casos.
 // Dados de demonstração ficam só em memória e nunca são gravados.
 
-export const COLECOES = ['config', 'os', 'solo', 'contagens', 'colheita', 'lotes', 'manut', 'ativos', 'plantas', 'equip'];
+export const COLECOES = ['config', 'os', 'solo', 'contagens', 'colheita', 'lotes', 'manut', 'ativos', 'plantas', 'equip', 'safras'];
 const LS = 'fz3d:';
 
 export class Store extends EventTarget {
