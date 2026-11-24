@@ -11,7 +11,7 @@ export const EQUIP_DEMO = [
   { id: 'TR-03', nome: 'Trator 03 + bazuca', tipo: 'bazuca', serie: 'TR-85-03', horimetro: 3920, consumo: 8, custoHora: 180, rastreador: 'GPS-1005' },
   { id: 'TR-04', nome: 'Trator 04 + bazuca', tipo: 'bazuca', serie: 'TR-85-04', horimetro: 3610, consumo: 8, custoHora: 180, rastreador: 'GPS-1006' },
   { id: 'AD-01', nome: 'Trator 05 + adubadora', tipo: 'adubadora', serie: 'TR-65-05', horimetro: 4870, consumo: 6, custoHora: 160, rastreador: 'GPS-1007' },
-  { id: 'RE-01', nome: 'Recolhedora 01', tipo: 'recolhedora', status: 'manutencao', serie: 'RC-118', horimetro: 2210, consumo: 9, custoHora: 230, rastreador: 'GPS-1008' },
+  { id: 'RE-01', nome: 'Recolhedora 01', tipo: 'recolhedora', serie: 'RC-118', horimetro: 2210, consumo: 9, custoHora: 230, rastreador: 'GPS-1008' },
   { id: 'ES-01', nome: 'Trator 06 + esparramadora', tipo: 'esparramadora', serie: 'TR-65-06', horimetro: 3990, consumo: 6, custoHora: 160, rastreador: 'GPS-1009' },
   { id: 'CM-01', nome: 'Caminhão 01', tipo: 'caminhao', serie: 'Placa ABC1D23', horimetro: 0, consumo: 0, custoHora: 140, rastreador: 'GPS-1010' },
 ];

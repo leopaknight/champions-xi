@@ -658,26 +658,6 @@ export class Scene3D {
     this.anim = { t0: performance.now(), dur: 900, p0: this.camera.position.clone(), p1: pos, q0: this.controls.target.clone(), q1: alvo };
   }
 
-  setRegiaoStatus(fn) {
-    if (!this.regionLabelById || !this.farm) return;
-    for (const [id, l] of this.regionLabelById) {
-      const st = fn(this.farm.regionById.get(id));
-      l.element.classList.remove('st-bom', 'st-atencao', 'st-critico');
-      l.element.classList.add('st-' + st);
-    }
-  }
-  // Alterna entre vista oblíqua (3D) e vista de cima (2D)
-  alternar3D() {
-    const t = this.controls.target.clone();
-    const off = this.camera.position.clone().sub(t);
-    const d = off.length();
-    const polar = Math.acos(Math.min(1, off.y / d));
-    const az = this.controls.getAzimuthalAngle();
-    const novoPolar = polar < 0.35 ? 0.95 : 0.05;
-    const p = new THREE.Vector3(Math.sin(novoPolar) * Math.sin(az), Math.cos(novoPolar), Math.sin(novoPolar) * Math.cos(az)).multiplyScalar(d).add(t);
-    this.anim = { t0: performance.now(), dur: 700, p0: this.camera.position.clone(), p1: p, q0: t.clone(), q1: t.clone() };
-  }
-
   zoom(f) {
     const t = this.controls.target;
     const v = this.camera.position.clone().sub(t).multiplyScalar(f);
