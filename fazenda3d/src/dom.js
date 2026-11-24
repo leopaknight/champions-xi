@@ -197,3 +197,26 @@ export function barrasV(items, { h = 170, unid = '' } = {}) {
   ${ticks.map((t) => `<line class="grid" x1="${pl}" x2="${W - 6}" y1="${Y(t)}" y2="${Y(t)}"/><text class="ax" x="${pl - 6}" y="${Y(t) + 4}" text-anchor="end">${num(t)}</text>`).join('')}
   ${items.map((it, i) => { const x = pl + i * bw + bw * 0.18, w = bw * 0.64; return `<rect x="${x}" y="${Y(it.v)}" width="${w}" height="${Math.max(0, h - pb - Y(it.v))}" rx="4" fill="${it.cor}"><title>${esc(it.l)}: ${esc(it.txt || num(it.v))}${unid}</title></rect><text class="ax" x="${x + w / 2}" y="${h - 8}" text-anchor="middle">${esc(it.l)}</text>`; }).join('')}</svg>`;
 }
+
+// Ícones coloridos dos atalhos da tela inicial (celular)
+export function tileIcon(n) {
+  const S = (c) => `<svg class="tile-ic" viewBox="0 0 48 48" aria-hidden="true">${c}</svg>`;
+  switch (n) {
+    case 'mapa': return S('<path d="M6 32l18 8 18-8-18-8z" fill="#4c9a3a"/><path d="M6 26l18 8 18-8-18-8z" fill="#7cc35a"/><path d="M24 4a8 8 0 00-8 8c0 6 8 14 8 14s8-8 8-14a8 8 0 00-8-8z" fill="#e9f3e4"/><circle cx="24" cy="12" r="3.2" fill="#2f6b2a"/>');
+    case 'operacoes': return S('<rect x="8" y="14" width="18" height="12" rx="2" fill="#e9f0e6"/><path d="M26 18h8l4 8v6H26z" fill="#e9f0e6"/><rect x="11" y="9" width="10" height="6" rx="1.5" fill="#cfd9cb"/><circle cx="14" cy="34" r="7" fill="#2a2f2a" stroke="#e9f0e6" stroke-width="3"/><circle cx="36" cy="35" r="5" fill="#2a2f2a" stroke="#e9f0e6" stroke-width="3"/>');
+    case 'regioes': return S('<path d="M4 36l8-22h24l8 22z" fill="#3c8a34"/><path d="M8 34l6-18M16 34l4-18M24 34V16M32 34l-4-18M40 34l-6-18" stroke="#9fe07a" stroke-width="3"/><path d="M4 36h40" stroke="#b6e98f" stroke-width="3"/>');
+    case 'maquinas': return S('<path d="M8 30V18h14l4 6h8v6z" fill="#f2c443"/><rect x="11" y="12" width="9" height="7" rx="1.5" fill="#e9f0e6"/><path d="M34 24l8-6 2 3-8 6z" fill="#f2c443"/><circle cx="14" cy="34" r="6" fill="#2a2f2a" stroke="#e9f0e6" stroke-width="2.6"/><circle cx="31" cy="35" r="4.5" fill="#2a2f2a" stroke="#e9f0e6" stroke-width="2.6"/>');
+    case 'solo': return S('<path d="M19 6h10M21 6v12L11 36a4 4 0 003.5 6h19a4 4 0 003.5-6L27 18V6" fill="none" stroke="#e9f0e6" stroke-width="3" stroke-linejoin="round"/><path d="M14 31h20l3 5a3 3 0 01-2.6 4.5H13.6A3 3 0 0111 36z" fill="#e9f0e6"/>');
+    case 'pragas': return S('<ellipse cx="24" cy="28" rx="9" ry="11" fill="none" stroke="#e9f0e6" stroke-width="3"/><path d="M24 17v22M18 12l3 5M30 12l-3 5M15 24H8M40 24h-7M15 32l-6 3M33 32l6 3M16 20l-6-4M32 20l6-4" stroke="#e9f0e6" stroke-width="3" stroke-linecap="round"/>');
+    case 'colheita': return S('<path d="M24 14c4-8 12-9 16-7-2 6-8 10-16 7z" fill="#58a83f"/><path d="M22 14c-3-6-10-8-14-6 2 5 7 8 14 6z" fill="#3f8a32"/>' + [[17, 24], [27, 22], [22, 31], [32, 31], [14, 34], [26, 40], [36, 39]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="5.5" fill="#d9362b"/><circle cx="${x - 1.8}" cy="${y - 1.8}" r="1.6" fill="#fff" opacity=".5"/>`).join(''));
+    case 'producao': return S('<path d="M15 12h18l4 8v18a4 4 0 01-4 4H15a4 4 0 01-4-4V20z" fill="#e6d3ae"/><path d="M17 6h14l-2 6H19z" fill="#cdb58b"/><path d="M15 12h18" stroke="#a88a5a" stroke-width="2"/><ellipse cx="24" cy="29" rx="5" ry="7" fill="#7a4524"/><path d="M24 22c-2 4-2 10 0 14" stroke="#e6d3ae" stroke-width="1.6" fill="none"/>');
+    case 'relatorios': return S('<rect x="9" y="26" width="7" height="14" rx="1.5" fill="#e9f0e6"/><rect x="20.5" y="16" width="7" height="24" rx="1.5" fill="#e9f0e6"/><rect x="32" y="8" width="7" height="32" rx="1.5" fill="#e9f0e6"/>');
+    default: return S('<circle cx="24" cy="24" r="12" fill="#e9f0e6"/>');
+  }
+}
+
+// Miniatura de lavoura (ruas de café em perspectiva) para cartões
+export function rowsThumb(cor = '#3f8a34', jovem = false) {
+  const linhas = Array.from({ length: 9 }, (_, i) => { const x0 = -20 + i * 18, x1 = 20 + i * 11; return `<path d="M${x0} 70L${x1} 26" stroke="${cor}" stroke-width="${jovem ? 3 : 6}" stroke-linecap="round"/>`; }).join('');
+  return `<svg class="thumb" viewBox="0 0 120 70" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="120" height="26" fill="#9cc6dc"/><path d="M0 26h120v44H0z" fill="#9a4f2a"/><path d="M0 24c20-6 40-4 60-1s40 2 60-2v5H0z" fill="#5b8a45"/>${linhas}</svg>`;
+}

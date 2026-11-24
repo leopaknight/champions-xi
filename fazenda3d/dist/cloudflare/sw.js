@@ -1,5 +1,5 @@
-// Cache para uso offline no campo. Versão: mwu42jwk
-const CACHE = 'lavoura3d-mwu42jwk';
+// Cache para uso offline no campo. Versão: mwu4fcv3
+const CACHE = 'lavoura3d-mwu4fcv3';
 const ARQ = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQ)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });

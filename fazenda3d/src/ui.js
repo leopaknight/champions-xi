@@ -7,8 +7,8 @@ import { TAREFA, FASE, STATUS_OS, STATUS_ATIVO, STATUS_PLANTA, TIPOS_EQUIP, PRAG
 import { estagio, faseAtual, taxaMmH } from './agro.js';
 import { telemetriaBomba, telemetriaRele, nivelReservatorio, setorIrrigando } from './sim.js';
 import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, compressRanges, expandRanges, debounce, uid, hash, sum, addDays } from './util.js';
-import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG } from './dom.js';
-import { VIEWS, NAV } from './views.js';
+import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG, rowsThumb } from './dom.js';
+import { VIEWS, NAV, situacaoRegiao } from './views.js';
 import { Forms } from './forms.js';
 
 const MODOS = [
@@ -68,6 +68,8 @@ export class UI {
     if (h && (NAV.some((n) => n.id === h) || VIEWS[h])) this.go(h); else this.go('inicio');
     window.addEventListener('hashchange', () => { const v = location.hash.slice(1) || 'inicio'; if (v !== this.view && (NAV.some((n) => n.id === v) || VIEWS[v])) this.go(v, false); });
     this.carregarClima();
+    this._cel = this.ehCelular();
+    window.addEventListener('resize', debounce(() => { const c = this.ehCelular(); if (c !== this._cel) { this._cel = c; this.renderHeader(); this.renderMobMap(); if (this.view !== 'mapa') this.renderView(); } }, 200));
   }
 
   lerQualidade() {
@@ -120,6 +122,7 @@ export class UI {
   </aside>
   <header class="top">
     <div class="mob-logo">${logoSVG()}${wm}</div>
+    <div class="mob-bar" id="mobBar"></div>
     <div class="top-t"><h1 id="pageTitle"></h1><p id="pageSub"></p></div>
     <div class="top-a">
       <button class="chipsel" id="btnBusca" data-act="busca" aria-label="Buscar">${ic('busca')}<span>Buscar</span></button>
@@ -159,11 +162,18 @@ export class UI {
         <button class="cine-btn" data-act="cinema" aria-label="Sair da tela cheia">${ic('fechar')}<span>Sair</span></button>
       </div>
     </div>
+    <div id="mobMap" class="mobmap" hidden></div>
     <section id="view" class="view" hidden></section>
     <aside id="drawer" class="drawer" hidden></aside>
   </main>
-  <nav class="bottom">${NAV.filter((n) => n.mob).sort((a, b) => a.mob - b.mob).map((n) => `<button class="nav-b" data-act="go" data-v="${n.id}">${ic(n.mobIc || n.ic)}<span>${esc(n.mobNome || n.curto || n.nome)}</span></button>`).join('')}<button class="nav-b" data-act="maisMenu">${ic('menu')}<span>Mais</span></button></nav>
-  <div id="maisMenu" class="mais" hidden>${NAV.filter((n) => !n.mob).map((n) => `<button data-act="go" data-v="${n.id}">${ic(n.ic)} ${esc(n.nome)}</button>`).join('')}</div>
+  <nav class="bottom">
+    <button class="nav-b" data-act="go" data-v="inicio">${ic('casa')}<span>Início</span></button>
+    <button class="nav-b" data-act="go" data-v="mapa">${ic('folha')}<span>Lavoura</span></button>
+    <button class="fab" data-act="fab" aria-label="Novo lançamento">${ic('mais')}</button>
+    <button class="nav-b" data-act="go" data-v="alertas">${ic('sino')}<span>Alertas</span><i class="nb-badge" id="navBadge" hidden></i></button>
+    <button class="nav-b" data-act="go" data-v="perfil">${ic('usuario')}<span>Perfil</span></button>
+  </nav>
+  <div id="maisMenu" class="mais" hidden></div>
   <div id="modal" class="modal" hidden></div>
   <div id="toast" class="toast" hidden></div>
 </div>`;
@@ -193,6 +203,13 @@ export class UI {
   acts = {
     go(d) { this.go(d.v); this.$('#maisMenu').hidden = true; this.fecharPops(); },
     busca() { this.abrirBusca(); },
+    fab() { this.abrirFab(); },
+    mobCor() { this.mapCtl('cor'); this.renderMobMap(); },
+    mob3d() { this.scene.alternar3D(); },
+    mobLocal() { this.scene.vistaPanoramica(this.regiaoSel || null); },
+    cinemaMapa() { this.setCinema(true); },
+    mobMenu() { this.abrirMenuMapa(); },
+    mobModo(d) { this.closeModal(); this.setMode(d.m); this.renderMobMap(); },
     pop(d) { const el = this.$('#pop-' + d.p); const abrir = el.hidden; this.fecharPops(); el.hidden = !abrir; if (abrir && d.p === 'alertas') this.renderAlertasPop(); },
     regiao(d) { this.escolherRegiao(d.r); },
     abrirRegiaoMapa(d) { this.go('mapa'); this.acts.selRegiao.call(this, { r: d.r }); },
@@ -268,11 +285,12 @@ export class UI {
       if (mapEl.parentElement !== this.$('#stage')) this.$('#stage').prepend(mapEl);
       mapEl.classList.remove('embed');
       viewEl.hidden = true; this.scene.paused = false; this.scene.dirty = true;
-      this.scene.setRegiaoDestaque(null);
+      this.scene.setRegiaoDestaque(this.ehCelular() || this.regiaoSel ? this.regiaoSel || null : null);
       setTimeout(() => this.scene.resize(), 30);
     } else { viewEl.hidden = false; this.renderView(); this.scene.paused = v !== 'inicio'; }
     if (v !== 'inicio') this._iniCam = false;
     this.renderHeader();
+    this.renderMobMap();
   }
   setMode(m) {
     this.mode = m;
@@ -292,6 +310,8 @@ export class UI {
     document.querySelectorAll('.mode-b').forEach((b) => b.classList.toggle('on', b.dataset.m === this.mode));
     this.colorir();
     this.scene.setAssetStatus((id) => this.model.assetStatus(id));
+    this.scene.setRegiaoStatus((r) => situacaoRegiao(this, r));
+    this.renderMobMap();
     this.updateMarkers();
     this.renderHud();
     this.renderSync();
@@ -332,7 +352,8 @@ export class UI {
     catch (err) { console.error(err); el.innerHTML = `<div class="view-in"><p class="erro">Não consegui montar esta tela: ${esc(err.message)}</p></div>`; }
     el.scrollTop = st;
     const slot = el.querySelector('#mapSlot');
-    if (slot) {
+    if (slot && slot.offsetParent === null) this.scene.paused = true;
+    if (slot && slot.offsetParent !== null) {
       slot.prepend(mapEl);
       mapEl.classList.add('embed');
       this.scene.paused = false;
@@ -562,6 +583,46 @@ export class UI {
     this.openDrawer({ tipo: 'equip', id });
   }
   // ------------------------------------------------------------------ cabeçalho
+  ehCelular() { return window.innerWidth <= 760; }
+  nomeUsuario() { try { return localStorage.getItem('fz3d:nome') || ''; } catch { return ''; } }
+  setNomeUsuario(n) { try { localStorage.setItem('fz3d:nome', n); } catch { /* sem armazenamento */ } }
+  abrirFab() {
+    const r = this.regiaoSel || this.farm.regions[0].id;
+    const ruas = esc(JSON.stringify({ [r]: compressRanges(this.farm.regionById.get(r).rows.map((x) => x.idx)) }));
+    const it = [['novaOS', 'Nova operação', 'trator', ''], ['novaOS', 'Monitorar pragas', 'fito', `data-tarefa="MN01" data-ruas="${ruas}"`], ['novaCarga', 'Registrar carga de colheita', 'grao', ''], ['novaContagem', 'Contagem de safra', 'mira', `data-reg="${r}"`], ['novaManut', 'Ocorrência de manutenção', 'manut', ''], ['novoSolo', 'Análise de solo', 'solo', `data-reg="${r}"`]];
+    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Lançar</div><h2>O que você quer registrar?</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
+      <div class="m-b"><div class="fab-g">${it.map(([a, n, i, extra]) => `<button data-act="${a}" ${extra}>${ic(i)}<span>${n}</span></button>`).join('')}</div></div></div>`, 'fabsheet');
+  }
+  abrirMenuMapa() {
+    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Mapa 3D</div><h2>Opções</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
+      <div class="m-b"><h4>Modo</h4><div class="seg">${MODOS.map((m) => `<button class="${m.id === this.mode ? 'on' : ''}" data-act="mobModo" data-m="${m.id}">${m.nome}</button>`).join('')}</div>
+      <h4>Colorir ruas por</h4><div class="seg">${CORES[this.mode].map(([k, n]) => `<button class="${this.cor[this.mode] === k ? 'on' : ''}" data-act="cor" data-c="${k}">${esc(n)}</button>`).join('')}</div>
+      <h4>Mais</h4><div class="pf-links"><button data-act="multi">${ic('check')}<span>Selecionar várias ruas</span>${ic('seta')}</button><button data-act="go" data-v="trabalho">${ic('trator')}<span>Máquinas em operação</span>${ic('seta')}</button><button data-act="busca">${ic('busca')}<span>Buscar rua, planta ou ativo</span>${ic('seta')}</button><button data-act="qualidade">${ic('camadas')}<span>Qualidade do 3D: ${QUALIDADES[this.scene.qNome].nome}</span>${ic('seta')}</button></div></div></div>`, 'fabsheet');
+  }
+  renderMobMap() {
+    const el = this.$('#mobMap');
+    if (!el) return;
+    const on = this.view === 'mapa' && this.ehCelular() && !this.cinema;
+    el.hidden = !on;
+    if (!on) return;
+    const m = this.model;
+    const r = this.farm.regionById.get(this.regiaoSel) || this.farm.regions[0];
+    if (!this.regiaoSel) { this.regiaoSel = r.id; this.scene.setRegiaoDestaque(r.id); }
+    const P = estagio(r, m.safra) === 'P';
+    const u = m.osList().find((o) => o.status === 'concluida' && o.ruas?.[r.id] && !['IR01', 'AD02', 'MN01', 'IR02', 'IR03'].includes(o.tarefa));
+    const cm = this.cor[this.mode];
+    el.innerHTML = `<div class="mm-left">
+        <button data-act="mobCor" aria-label="Camadas de cor">${ic('camadas')}</button>
+        <button data-act="mob3d" aria-label="Alternar 3D e vista de cima"><b>3D</b></button>
+        <button data-act="mobLocal" aria-label="Centralizar">${ic('mira')}</button>
+        <button data-act="cinemaMapa" aria-label="Tela cheia">${ic('expandir')}</button></div>
+      <div class="mm-bus" aria-hidden="true"><svg id="mmBus" viewBox="0 0 40 40"><path d="M20 5l9 27-9-6-9 6z" fill="#fff"/></svg></div>
+      ${cm !== 'natural' ? `<div class="mm-leg"><b>${esc((CORES[this.mode].find((x) => x[0] === cm) || [])[1] || '')}</b><div class="lg-items">${this.legendHTML()}</div></div>` : ''}
+      <div class="mm-sheet"><i class="mm-handle"></i>
+        <button class="mm-top" data-act="selRegiao" data-r="${r.id}"><span class="mm-th">${rowsThumb(P ? '#3f8a34' : '#6fae4a', !P)}</span><span class="mm-n"><b>${esc(r.nome)}</b><small>${num(r.areaHa, 1)} ha · ${esc(r.variedade)}</small></span><span class="mm-go">${ic('seta')}</span></button>
+        <div class="mm-g"><span><em>Situação</em>${chip(P ? 'Em produção' : 'Em formação', P ? 'st-ok' : 'st-warn')}</span><span><em>Idade</em><b>${num(r.idade, 0)} ${r.idade < 1.5 ? 'ano' : 'anos'}</b></span><span><em>Última operação</em><b>${u ? `${esc((TAREFA[u.tarefa]?.nome || '').split(' (')[0].split(' — ')[0].split(':')[0])} (${fmtDate(u.data).slice(0, 5)})` : '—'}</b></span></div></div>`;
+    this.atualizarBussola();
+  }
   saudacao() { const h = new Date().getHours(); return h < 12 ? 'Bom dia!' : h < 18 ? 'Boa tarde!' : 'Boa noite!'; }
   renderHeader() {
     if (!this.farm) return;
@@ -576,6 +637,13 @@ export class UI {
     const q = this.$('#qualTxt'); if (q) q.textContent = QUALIDADES[this.scene.qNome].nome;
     const nAl = this.alertas().length;
     const bb = this.$('#bellBadge'); if (bb) bb.hidden = !nAl;
+    const nb = this.$('#navBadge'); if (nb) { nb.hidden = !nAl; nb.textContent = nAl > 9 ? '9+' : String(nAl); }
+    const mb = this.$('#mobBar');
+    if (mb) {
+      const titulo = this.view === 'mapa' ? 'Mapa 3D da Lavoura' : n ? n.nome : '';
+      const subt = this.view === 'mapa' ? `${this.farmConfig().nome} · ${num(this.farm.totais.areaHa, 0)} ha` : this.view === 'agenda' ? `${this.farmConfig().nome}` : '';
+      mb.innerHTML = `<button class="mb-back" data-act="go" data-v="inicio" aria-label="Voltar ao início">${ic('voltar')}</button><div class="mb-t"><b>${this.view === 'agenda' ? ic('trator') : ''}${esc(titulo)}</b>${subt ? `<small>${esc(subt)}</small>` : ''}</div>${this.view === 'mapa' ? `<button class="mb-k" data-act="mobMenu" aria-label="Opções do mapa">${ic('menu')}</button>` : `<button class="mb-k" data-act="busca" aria-label="Buscar">${ic('busca')}</button>`}`;
+    }
   }
   alertas() {
     const m = this.model, farm = this.farm;
@@ -604,6 +672,7 @@ export class UI {
     this.regiaoSel = id;
     this.scene.setRegiaoDestaque(id);
     if (this.view === 'inicio') VIEWS.inicio.regiaoInfo?.(this);
+    if (this.view === 'mapa') this.renderMobMap();
   }
   mapCtl(c) {
     const sc = this.scene;
@@ -624,12 +693,13 @@ export class UI {
     }
   }
   atualizarBussola() {
-    if (this.view !== 'inicio') return;
+    if (this.view !== 'inicio' && this.view !== 'mapa') return;
     if (this._bussolaRaf) return;
     this._bussolaRaf = requestAnimationFrame(() => {
       this._bussolaRaf = null;
-      const b = document.getElementById('mcBus');
-      if (b) b.style.transform = `rotate(${(this.scene.azimute() * 180) / Math.PI}deg)`;
+      const ang = `rotate(${(this.scene.azimute() * 180) / Math.PI}deg)`;
+      const b = document.getElementById('mcBus'); if (b) b.style.transform = ang;
+      const b2 = document.getElementById('mmBus'); if (b2) b2.style.transform = ang;
       const e = document.getElementById('mcEsc');
       if (e) {
         const mpp = this.scene.metrosPorPixel();
@@ -705,11 +775,14 @@ export class UI {
       cine.hidden = false;
       cine.classList.remove('oculto');
       this.liveFollow(this.sim.machines);
+      cine.classList.toggle('sem-maq', !this.seguir);
+      if (!this.seguir) { const cl = document.getElementById('cineLive'); if (cl) cl.innerHTML = `<b>${esc(this.farmConfig().nome)}</b> · ${num(this.farm.totais.areaHa, 0)} ha`; }
       try { const el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch { /* sem tela cheia nativa */ }
       try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch { /* ignora */ }
     } else {
       if (this._rotulosAntes != null) this.scene.setLayer('rotulos', this._rotulosAntes);
       cine.hidden = true;
+      setTimeout(() => this.renderMobMap(), 80);
       try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch { /* ignora */ }
     }
     this.scene.followZoom = on ? 0.75 : 1;
@@ -1011,7 +1084,7 @@ export class UI {
       }
       if (this.view === 'equipamentos') VIEWS.equipamentos.live?.(this);
       if (this.view === 'trabalho') VIEWS.trabalho.live?.(this);
-      if (this.view === 'inicio') VIEWS.inicio.live?.(this);
+      if (this.view === 'inicio' || this.view === 'agenda') VIEWS.inicio.live?.(this);
       if (this.seguir) this.liveFollow(ms);
       if (this.mode === 'colheita' && this.cor.colheita === 'colhidas' && now - (this._lastCol || 0) > 3000) { this._lastCol = now; this.colorir(); }
     }
