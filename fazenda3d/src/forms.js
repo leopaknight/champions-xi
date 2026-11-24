@@ -3,7 +3,7 @@
 import { TAREFAS, TAREFA, FASES, FASE, STATUS_OS, STATUS_ATIVO, TIPOS_EQUIP } from './catalog.js';
 import { ATRIBUTOS, estimar, cud, interpretar } from './agro.js';
 import { esc, num, brl, fmtDate, uid, isoDate, expandRanges, compressRanges, sum, anoSafra } from './util.js';
-import { ic, chip, baixar, lerArquivo } from './dom.js';
+import { ic, chip, baixar, lerArquivo, comprimirImagem } from './dom.js';
 import { RELATORIOS, relatorioHTML, documentoHTML } from './reports.js';
 import { toCSV } from './util.js';
 
@@ -393,6 +393,8 @@ export class Forms {
         ${fld('Consumo (L/h)', inp('consumo', e.consumo, 'type="number" step="0.1"'))}
         ${fld('Custo por hora (R$)', inp('custoHora', e.custoHora, 'type="number" step="0.01"'))}
         ${fld('ID do rastreador GPS', inp('rastreador', e.rastreador))}
+        ${fld('Situação', sel('status', [['disponivel', 'Disponível'], ['manutencao', 'Em manutenção'], ['inativa', 'Inativa']], e.status || 'disponivel'))}
+        ${fld('Revisão a cada (h)', inp('revisao', e.revisao || 250, 'type="number"'))}
       </div></div>
       <div class="m-f">${editar && !e.demo ? `<button type="button" class="btn ghost bad" id="eqDel">${ic('lixo')} Excluir</button>` : ''}<span class="sp"></span><button type="button" class="btn" data-act="fecharModal">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div></form>`);
     const f = box.querySelector('#fEq');
@@ -400,10 +402,51 @@ export class Forms {
       ev.preventDefault();
       const id = f.id.value.trim().toUpperCase().replace(/[^A-Z0-9\-_]/g, '');
       if (!id) return;
-      const d = { id, nome: f.nome.value.trim(), tipo: f.tipo.value, serie: f.serie.value, horimetro: +f.horimetro.value || 0, consumo: +f.consumo.value || 0, custoHora: +f.custoHora.value || 0, rastreador: f.rastreador.value.trim() };
+      const d = { id, nome: f.nome.value.trim(), tipo: f.tipo.value, serie: f.serie.value, horimetro: +f.horimetro.value || 0, consumo: +f.consumo.value || 0, custoHora: +f.custoHora.value || 0, rastreador: f.rastreador.value.trim(), status: f.status.value, revisao: +f.revisao.value || 250 };
       try { await ui.store.put('equip', d); ui.closeModal(); ui.toast('Máquina salva.'); } catch { ui.toast('Não foi salvo.'); }
     };
     box.querySelector('#eqDel')?.addEventListener('click', async () => { await ui.store.del('equip', e.id); ui.closeModal(); ui.toast('Máquina removida.'); });
+  }
+
+  // ================================================================ CHECKLIST DE SEGURANÇA
+  checklist(base = {}) {
+    const ui = this.ui, m = this.m;
+    const itens = [['epi', 'EPI completo (luvas, máscara, avental, botas, óculos/viseira)'], ['receita', 'Receituário agronômico em mãos'], ['bula', 'Bula lida: dose, carência e reentrada conferidas'], ['calib', 'Pulverizador calibrado e sem vazamentos'], ['clima', 'Clima adequado: vento 3–10 km/h, abaixo de 30 °C, UR acima de 55%'], ['triplice', 'Tríplice lavagem e destino das embalagens'], ['socorro', 'Água limpa e kit de primeiros socorros no local'], ['sinal', 'Área sinalizada durante a reentrada']];
+    const box = ui.modal(`<form class="mform" id="fCk"><div class="m-h"><div><div class="dr-eyebrow">Modo de campo</div><h2>Checklist de EPI e segurança</h2></div><button type="button" class="dr-x" data-act="fecharModal">${ic('fechar')}</button></div>
+      <div class="m-b"><div class="form-grid">${fld('Região', sel('reg', this.farm.regions.map((r) => [r.id, r.nome]), base.reg || ui.regiaoSel))}${fld('Responsável', inp('operador', base.operador || ui.nomeUsuario()))}${fld('Data', inp('data', m.hoje, 'type="date"'))}</div>
+      <div class="ck-list">${itens.map(([k, l]) => `<label class="fld chk"><input type="checkbox" name="i_${k}"><span>${esc(l)}</span></label>`).join('')}</div>
+      ${fld('Observações', '<textarea name="obs" rows="2"></textarea>', 'wide')}</div>
+      <div class="m-f"><span class="sp"></span><button type="button" class="btn" data-act="fecharModal">Cancelar</button><button class="btn pri" type="submit">${ic('check')} Salvar checklist</button></div></form>`);
+    const f = box.querySelector('#fCk');
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      const it = Object.fromEntries(itens.map(([k]) => [k, f['i_' + k].checked]));
+      const ok = Object.values(it).filter(Boolean).length;
+      try { await ui.store.put('checklists', { id: uid('ck-'), data: f.data.value, reg: f.reg.value, operador: f.operador.value, itens: it, ok, total: itens.length, obs: f.obs.value }); ui.closeModal(); ui.toast(ok === itens.length ? 'Checklist completo salvo.' : `Checklist salvo com ${itens.length - ok} item(ns) pendente(s).`); } catch { ui.toast('Não foi salvo.'); }
+    };
+  }
+
+  // ================================================================ FOTO DA LAVOURA
+  async foto() {
+    const ui = this.ui;
+    const inpEl = document.createElement('input');
+    inpEl.type = 'file'; inpEl.accept = 'image/*'; inpEl.setAttribute('capture', 'environment');
+    inpEl.onchange = async () => {
+      const file = inpEl.files[0];
+      if (!file) return;
+      let img;
+      try { img = await comprimirImagem(file, 1024, 0.6); } catch { ui.toast('Não consegui ler a imagem.'); return; }
+      const box = ui.modal(`<form class="mform" id="fFt"><div class="m-h"><div><div class="dr-eyebrow">Modo de campo</div><h2>Foto da lavoura</h2></div><button type="button" class="dr-x" data-act="fecharModal">${ic('fechar')}</button></div>
+        <div class="m-b"><img class="ft-prev" src="${img}" alt="Foto escolhida"><div class="form-grid">${fld('Região', sel('reg', this.farm.regions.map((r) => [r.id, r.nome]), ui.regiaoSel))}${fld('Rua (opcional)', inp('rua', ui.sel[0] || '', 'placeholder="ex.: R2-L047"'))}${fld('Assunto', sel('tipo', ['Lavoura', 'Praga', 'Doença', 'Deficiência nutricional', 'Irrigação', 'Máquina', 'Outro'], 'Lavoura'))}</div>${fld('Observação', '<textarea name="obs" rows="2"></textarea>', 'wide')}</div>
+        <div class="m-f"><span class="sp"></span><button type="button" class="btn" data-act="fecharModal">Cancelar</button><button class="btn pri" type="submit">Salvar foto</button></div></form>`);
+      const f = box.querySelector('#fFt');
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        try { await ui.store.put('fotos', { id: uid('ft-'), data: this.m.hoje, quando: new Date().toISOString(), reg: f.reg.value, rua: f.rua.value.trim().toUpperCase() || null, tipo: f.tipo.value, obs: f.obs.value, img }); ui.closeModal(); ui.toast('Foto salva.'); }
+        catch { ui.toast('Não foi salva (armazenamento cheio?). Exporte um backup e apague fotos antigas.'); }
+      };
+    };
+    inpEl.click();
   }
 
   // ================================================================ STATUS DE ATIVO

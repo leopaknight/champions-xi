@@ -220,3 +220,49 @@ export function rowsThumb(cor = '#3f8a34', jovem = false) {
   const linhas = Array.from({ length: 9 }, (_, i) => { const x0 = -20 + i * 18, x1 = 20 + i * 11; return `<path d="M${x0} 70L${x1} 26" stroke="${cor}" stroke-width="${jovem ? 3 : 6}" stroke-linecap="round"/>`; }).join('');
   return `<svg class="thumb" viewBox="0 0 120 70" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="120" height="26" fill="#9cc6dc"/><path d="M0 26h120v44H0z" fill="#9a4f2a"/><path d="M0 24c20-6 40-4 60-1s40 2 60-2v5H0z" fill="#5b8a45"/>${linhas}</svg>`;
 }
+
+// Cenas ilustradas (no lugar de fotos) para cartões de operações, máquinas e cabeçalhos
+export function cena(tipo = 'trator', cor = '#2f8a2a') {
+  const fundo = `<defs><linearGradient id="ceu" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8fc3e0"/><stop offset="1" stop-color="#d9ecf2"/></linearGradient></defs><rect width="120" height="80" fill="url(#ceu)"/><path d="M0 34c20-8 44-6 64-2s40 4 56-2v50H0z" fill="#5c8f45"/><path d="M0 44h120v36H0z" fill="#9a5028"/>${Array.from({ length: 8 }, (_, i) => `<path d="M${-10 + i * 18} 80L${30 + i * 9} 44" stroke="#3f8a34" stroke-width="5" stroke-linecap="round"/>`).join('')}`;
+  const roda = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#222"/><circle cx="${x}" cy="${y}" r="${r * 0.45}" fill="#d9c27a"/>`;
+  const trator = (c) => `<g transform="translate(34 30)"><rect x="10" y="14" width="30" height="13" rx="2" fill="${c}"/><rect x="18" y="2" width="15" height="14" rx="2" fill="${c}"/><rect x="20" y="4" width="11" height="9" fill="#bfe3f5"/><rect x="36" y="9" width="2.5" height="8" fill="#555"/>${roda(18, 30, 9)}${roda(42, 32, 6)}</g>`;
+  let fig = '';
+  switch (tipo) {
+    case 'trator': case 'saco': case 'adubadora': fig = trator(cor) + (tipo !== 'trator' ? `<rect x="10" y="44" width="22" height="14" rx="2" fill="#e8742a"/>` : ''); break;
+    case 'spray': case 'pulverizador': fig = trator(cor) + `<ellipse cx="22" cy="54" rx="13" ry="8" fill="#eee"/><path d="M8 50c-6-4-8-10-6-14M8 56c-8 0-12-4-13-8" stroke="#fff" stroke-width="2" opacity=".8" fill="none"/>`; break;
+    case 'folha': case 'rocadeira': fig = trator(cor) + `<rect x="6" y="56" width="26" height="6" rx="2" fill="#f39c12"/>`; break;
+    case 'colhedora': case 'grao': fig = `<g transform="translate(34 18)"><rect x="4" y="6" width="44" height="8" rx="2" fill="${cor}"/><rect x="4" y="6" width="9" height="36" fill="${cor}"/><rect x="39" y="6" width="9" height="36" fill="${cor}"/><rect x="30" y="-4" width="14" height="11" rx="2" fill="${cor}"/><rect x="32" y="-2" width="10" height="7" fill="#bfe3f5"/>${roda(9, 44, 6)}${roda(44, 44, 6)}</g>`; break;
+    case 'tesoura': fig = `<g transform="translate(40 18) rotate(-20)"><path d="M10 0l6 30M30 0l-6 30" stroke="#ccc" stroke-width="4"/><circle cx="10" cy="40" r="8" fill="none" stroke="#c0392b" stroke-width="5"/><circle cx="30" cy="40" r="8" fill="none" stroke="#c0392b" stroke-width="5"/></g>`; break;
+    case 'caminhao': fig = `<g transform="translate(26 32)"><rect x="0" y="4" width="44" height="20" fill="#e8e3d6"/><rect x="44" y="10" width="18" height="14" rx="2" fill="${cor}"/>${roda(10, 26, 6)}${roda(52, 26, 6)}</g>`; break;
+    case 'gota': fig = `<path d="M60 18s14 16 14 26a14 14 0 01-28 0c0-10 14-26 14-26z" fill="#3a9ad9"/>`; break;
+    case 'fito': fig = `<g transform="translate(46 24)"><ellipse cx="14" cy="18" rx="10" ry="13" fill="#5a3a22"/><path d="M14 5v26M4 12L-4 6M24 12l8-6M3 22l-8 4M25 22l8 4" stroke="#5a3a22" stroke-width="3"/></g>`; break;
+    case 'solo': fig = `<path d="M60 44c0-12 0-18 0-22" stroke="#4f8a2a" stroke-width="3"/><path d="M60 26c-10-2-16-10-16-16 10 0 16 6 16 16zM60 30c8-2 14-8 14-14-8 0-14 6-14 14z" fill="#6fbf3f"/>`; break;
+    default: fig = trator(cor);
+  }
+  return `<svg class="cena" viewBox="0 0 120 80" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${fundo}${fig}</svg>`;
+}
+
+// Anel de progresso pequeno
+export function anel(p, cor = '#2f8a2a', tam = 44) {
+  const r = tam / 2 - 4, C = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(100, p || 0));
+  return `<svg class="anel" viewBox="0 0 ${tam} ${tam}" width="${tam}" height="${tam}"><circle cx="${tam / 2}" cy="${tam / 2}" r="${r}" fill="none" stroke="#e4dfd2" stroke-width="4"/><circle cx="${tam / 2}" cy="${tam / 2}" r="${r}" fill="none" stroke="${cor}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${(v / 100) * C} ${C}" transform="rotate(-90 ${tam / 2} ${tam / 2})"/><text x="50%" y="55%" text-anchor="middle" font-size="${tam * 0.24}" font-weight="800" fill="#1d2a1f">${Math.round(v)}%</text></svg>`;
+}
+
+// Comprime uma imagem (File) para JPEG com lado máximo `max`
+export function comprimirImagem(file, max = 1024, q = 0.62) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL('image/jpeg', q));
+    };
+    img.onerror = (e) => { URL.revokeObjectURL(url); rej(e); };
+    img.src = url;
+  });
+}

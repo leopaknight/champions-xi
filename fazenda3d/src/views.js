@@ -4,7 +4,8 @@ import { TAREFA, TAREFAS, FASES, FASE, PRAGAS, STATUS_OS, STATUS_ATIVO, TIPOS_EQ
 import { estagio, faseAtual, interpretar, ATRIBUTOS, DERIV, etoHargreaves, taxaMmH, kr, PARAM_PADRAO, estimar } from './agro.js';
 import { telemetriaBomba, telemetriaRele, nivelReservatorio, setorIrrigando } from './sim.js';
 import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, addDays, parseISO, MESES, MESES_LONGO, DIAS, sum, groupBy, anoSafra, daysBetween, compressRanges, toCSV, mean } from './util.js';
-import { ic, chip, STCLS, STNOME, lineChart, barH, corCat, baixar, lerArquivo, donut, barrasV, tileIcon, rowsThumb, logoSVG, ramoSVG } from './dom.js';
+import { ic, chip, STCLS, STNOME, lineChart, barH, corCat, baixar, lerArquivo, donut, barrasV, tileIcon, rowsThumb, logoSVG, ramoSVG, cena, anel } from './dom.js';
+import { progressoSafra } from './ui.js';
 import { RELATORIOS } from './reports.js';
 import { polysFromGeoJSON, polysFromKML, CONFIG_PADRAO } from './farm.js';
 import { QUALIDADES } from './scene.js';
@@ -23,9 +24,12 @@ export const NAV = [
   { id: 'inventario', nome: 'Levantamento', ic: 'invent', grupo: 's' },
   { id: 'relatorios', nome: 'Relatórios', ic: 'relat', grupo: 's' },
   { id: 'ajustes', nome: 'Ajustes', ic: 'config', grupo: 's' },
+  { id: 'manejo', nome: 'Manejo do Café', ic: 'agenda', grupo: 's' },
+  { id: 'alertas', nome: 'Previsão e Alertas', ic: 'nuvem', grupo: 's' },
+  { id: 'campo', nome: 'Modo de Campo', ic: 'gps', grupo: 's' },
   { id: 'regioes', nome: 'Regiões', ic: 'campo', grupo: 'h' },
+  { id: 'regiao', nome: 'Região', ic: 'campo', grupo: 'h' },
   { id: 'producao', nome: 'Produção', ic: 'grafico', grupo: 'h' },
-  { id: 'alertas', nome: 'Alertas', ic: 'sino', grupo: 'h' },
   { id: 'perfil', nome: 'Perfil', ic: 'usuario', grupo: 'h' },
 ];
 
@@ -68,7 +72,7 @@ export const VIEWS = {
       const prox = m.osList().filter((o) => o.status === 'planejada' && o.data >= m.hoje).sort((a, b) => (a.data < b.data ? -1 : 1));
       const ops = [...exec, ...prox].slice(0, 5);
       // colheita: safra com cargas no ano corrente ou a anterior
-      const Sc = m.cargas(+m.hoje.slice(0, 4)).length ? +m.hoje.slice(0, 4) : S - 1;
+      const Sc = +vs.prodSafra || (m.cargas(+m.hoje.slice(0, 4)).length ? +m.hoje.slice(0, 4) : S - 1);
       const colhido = sum(farm.regions, (r) => m.colheitaRegiao(r, Sc).sacas);
       const meta = sum(farm.regions, (r) => m.previsao(r, Sc)?.total || 0) || prevTot;
       const ruasProd = sum(farm.regions.filter((r) => Sc - r.plantio >= 2), (r) => r.nRows) || 1;
@@ -123,12 +127,6 @@ export const VIEWS = {
             ${climaCard(false)}
           </aside>
         </div>
-        <div class="mob-grid mob-only">
-          <section class="card big tarefas"><div class="card-h"><h3>${ic('agenda')} Tarefas de hoje</h3><span class="pill">${hoje.length} tarefa${hoje.length === 1 ? '' : 's'}</span></div>
-            ${(() => { const rot = hoje.filter((o) => ['AD02', 'IR01', 'IR02', 'MN01'].includes(o.tarefa)); const lst = hoje.filter((o) => !rot.includes(o)); return lst.length || rot.length ? `<ul class="tl">${lst.map((o) => `<li><button class="tl-ck ${o.status === 'concluida' ? 'on' : ''}" data-act="tarefaOk" data-id="${o.id}" aria-label="Marcar como feita">${ic('check2')}</button><button class="tl-t" data-act="abrirOS" data-id="${o.id}"><b>${esc(nomeCurto(o.tarefa))} – ${esc(regioesTxt(ui, o))}</b><small>${num(m.areaOS(o), 2)} ha</small></button>${ic('seta')}</li>`).join('')}</ul>${rot.length ? `<button class="tl-mais" data-act="go" data-v="agenda">+ ${rot.length} rotina${rot.length > 1 ? 's' : ''} (fertirrigação, irrigação, filtros)</button>` : ''}` : '<p class="muted">Nada para hoje.</p>'; })()}</section>
-          <section class="card big alertas-m"><div class="card-h"><h3>${ic('aviso')} Alertas</h3><span class="pill bad">${ui.alertas().length}</span></div>
-            ${ui.alertas().slice(0, 3).map((a) => `<button class="al-it ${a.nivel}" data-act="${a.act}" ${a.arg}>${ic(a.ic)}<span><b>${esc(a.t)}</b><small>${esc(a.s)}</small></span>${ic('seta')}</button>`).join('') || '<p class="muted">Sem alertas.</p>'}</section>
-        </div>
         <div class="ini-charts desk-only">
           <section class="card big"><div class="card-h"><h3>Evolução da produção <small class="muted">(sacas)</small></h3></div>${serie.length ? barrasV(serie) : '<p class="muted">Lance o histórico de safras em Colheita.</p>'}<p class="muted small">* previsão pela última contagem.</p></section>
           <section class="card big"><div class="card-h"><h3>Operações da safra</h3></div><div class="dn">${donut([{ v: nConc, cor: '#2f7d32' }, { v: nExec, cor: '#8fcf6a' }, { v: nPlan, cor: '#d9a066' }, { v: nNao, cor: '#c9c3b6' }], { centro: `${num((nConc / totOps) * 100, 0)}%`, sub: 'Concluído' })}<ul class="dleg">${legRow('#2f7d32', 'Concluídas', nConc)}${legRow('#8fcf6a', 'Em andamento', nExec)}${legRow('#d9a066', 'Programadas', nPlan)}${legRow('#c9c3b6', 'Pendentes do plano', nNao)}</ul></div></section>
@@ -165,13 +163,14 @@ export const VIEWS = {
         <div class="rg-b"><div class="rg-h"><b>${esc(r.nome)}</b>${chip(estagio(r, m.safra) === 'P' ? 'Em produção' : 'Em formação', estagio(r, m.safra) === 'P' ? 'st-ok' : 'st-warn')}</div>
         <small>${num(r.areaHa, 1)} ha · ${esc(r.variedade)}</small>
         <div class="rg-g"><span><em>Idade</em><b>${num(r.idade, 0)} ${r.idade < 1.5 ? 'ano' : 'anos'}</b></span><span><em>Última operação</em><b>${u ? `${esc(nomeCurto(u.tarefa))} (${fmtDate(u.data).slice(0, 5)})` : '—'}</b></span><span><em>Previsão</em><b>${pv ? num(pv.scha, 1) + ' sc/ha' : '—'}</b></span></div>
-        <div class="os-act"><button class="btn pri sm" data-act="viewAct" data-a="mapa" data-r="${r.id}">${ic('cubo')} Ver no mapa</button><button class="btn sm" data-act="selRegiao" data-r="${r.id}">Selecionar ruas</button></div></div></article>`; }).join('')}</div>`;
+        <div class="os-act"><button class="btn pri sm" data-act="regiaoDet" data-r="${r.id}">Detalhes</button><button class="btn sm" data-act="viewAct" data-a="mapa" data-r="${r.id}">${ic('cubo')} Ver no mapa</button></div></div></article>`; }).join('')}</div>`;
     },
     act(ui, d) { if (d.a === 'mapa') { ui.go('mapa'); ui.escolherRegiao(d.r); const r = ui.farm.regionById.get(d.r); ui.scene.vistaPanoramica(d.r); void r; } },
   },
 
   // =========================================================== PRODUÇÃO
   producao: {
+    chg(ui, t) { vs[t.dataset.k] = +t.value; ui.renderView(); },
     render(ui) {
       const m = ui.model, farm = ui.farm, S = m.safra;
       const prodRegs = farm.regions.filter((r) => estagio(r, S) === 'P');
@@ -186,26 +185,133 @@ export const VIEWS = {
       for (const a of m.safrasColhidas()) { const t = sum(farm.regions, (r) => m.colheitaRegiao(r, a).sacas); if (t) anos.set(a, t); }
       const serie = [...anos.entries()].filter(([a]) => a < S).sort((a, b) => a[0] - b[0]).slice(-5).map(([a, v]) => ({ l: String(a), v, cor: '#9fd07a' }));
       if (prevTot) serie.push({ l: `${S}*`, v: prevTot, cor: '#2f7d32' });
+      const safras = [...new Set([S, ...m.safrasColhidas()])].sort((a, b) => b - a);
       return `${head('Produção', `Previsão ${S} e colheita ${Sc}`, `<button class="btn pri" data-act="go" data-v="colheita">${ic('grao')} Colheita e contagens</button>`)}
-      <div class="tiles"><div class="tile"><span>Previsão ${S}</span><b>${num(prevTot, 0)} sc</b><small>${num(prevTot / (sum(prodRegs, (r) => r.areaHa) || 1), 1)} sc/ha em produção</small></div><div class="tile"><span>Colhido ${Sc}</span><b>${num(colhido, 0)} sc</b><small>${num(pctCol, 0)}% das ruas</small></div></div>
-      <section class="card big colh"><div class="card-h"><h3>${ic('grao')} Colheita do café</h3><small class="muted">Safra ${Sc}</small></div><div class="colh-b">${donut([{ v: pctCol, cor: '#2f7d32' }, { v: 100 - pctCol, cor: 'transparent' }], { centro: `${num(pctCol, 0)}%`, sub: 'Concluída', tam: 140, esp: 16 })}<div class="colh-n"><div>${ic('saco')}<span><b>${num(colhido, 0)} sacas</b><small>colhidas</small></span></div><div>${ic('mira')}<span><b>${num(meta, 0)} sacas</b><small>previstas</small></span></div></div></div></section>
-      <section class="card big"><div class="card-h"><h3>${ic('grafico')} Produção por região</h3><small class="muted">${Sc}</small></div>${barH(farm.regions.filter((r) => m.colheitaRegiao(r, Sc).sacas).map((r) => ({ l: r.nome, v: m.colheitaRegiao(r, Sc).schaTotal, txt: `${num(m.colheitaRegiao(r, Sc).schaTotal, 0)} sc/ha`, cor: '#2f7d32' })), { max: 80 }) || '<p class="muted">Sem colheita registrada.</p>'}</section>
+      <label class="safrasel">${ic('agenda')}<select data-chg="viewChg" data-k="prodSafra">${safras.map((a) => `<option value="${a}" ${a === Sc ? 'selected' : ''}>Safra ${a}</option>`).join('')}</select></label>
+      <div class="prod2"><section class="card big pr-sc"><span class="pr-saco">${tileIcon('producao')}</span><div><b>${num(colhido || (Sc === S ? 0 : 0), 0)}</b><small>sacas (60 kg)</small><em>Meta: ${num(meta, 0)}</em></div></section>
+      <section class="card big pr-dn">${donut([{ v: pctCol, cor: '#2f7d32' }, { v: 100 - pctCol, cor: 'transparent' }], { centro: `${num(pctCol, 0)}%`, sub: 'Concluída', tam: 130, esp: 14 })}</section></div>
+      <section class="card big"><div class="card-h"><h3>${ic('grafico')} Produção por região (sc/ha)</h3><small class="muted">${Sc}</small></div>${barH(farm.regions.filter((r) => m.colheitaRegiao(r, Sc).sacas).map((r) => ({ l: r.nome, v: m.colheitaRegiao(r, Sc).schaTotal, txt: `${num(m.colheitaRegiao(r, Sc).schaTotal, 0)} sc/ha`, cor: '#2f7d32' })), { max: 80 }) || '<p class="muted">Sem colheita registrada.</p>'}</section>
       <section class="card big"><div class="card-h"><h3>Evolução da produção <small class="muted">(sacas)</small></h3></div>${serie.length ? barrasV(serie) : '<p class="muted">Sem histórico.</p>'}<p class="muted small">* previsão pela última contagem.</p></section>
-      <section class="card big"><div class="card-h"><h3>Previsão por região</h3></div><table class="tbl sm"><thead><tr><th>Região</th><th>sc/ha</th><th>Total</th></tr></thead><tbody>${prodRegs.map((r) => { const pv = m.previsao(r); return `<tr><td>${esc(r.nome)}</td><td>${pv ? num(pv.scha, 1) : '—'}</td><td>${pv ? num(pv.total, 0) + ' sc' : '—'}</td></tr>`; }).join('')}</tbody></table></section>`;
+      <section class="card big"><div class="card-h"><h3>Previsão ${S} por região</h3></div><table class="tbl sm"><thead><tr><th>Região</th><th>sc/ha</th><th>Total</th></tr></thead><tbody>${prodRegs.map((r) => { const pv = m.previsao(r); return `<tr><td>${esc(r.nome)}</td><td>${pv ? num(pv.scha, 1) : '—'}</td><td>${pv ? num(pv.total, 0) + ' sc' : '—'}</td></tr>`; }).join('')}</tbody></table></section>`;
     },
   },
 
-  // =========================================================== ALERTAS
+  // (produção: seletor de safra)
+  // =========================================================== PREVISÃO E ALERTAS
   alertas: {
     render(ui) {
       const al = ui.alertas();
-      return `${head('Alertas', `${al.length} alerta${al.length === 1 ? '' : 's'} agora`)}
+      const cl = ui.clima || {};
+      const cfg = ui.farmConfig();
+      return `${head('Previsão e Alertas', esc(cl.fonte || ''))}
+      <section class="card big prev"><div class="pv-now"><div class="clima-now">${climaSVG(cl.codigo)}<div><b>${cl.temp != null ? num(cl.temp, 0) : '—'}<sup>°C</sup></b><small>${esc(cfg.municipio || '')} · ${esc(climaTexto(cl.codigo))}</small></div></div>
+        <dl class="pv-kv"><dt>Umidade</dt><dd>${cl.ur != null ? num(cl.ur, 0) + '%' : '—'}</dd><dt>Vento</dt><dd>${cl.vento != null ? num(cl.vento, 0) + ' km/h' : '—'}</dd><dt>Chuva (24h)</dt><dd>${cl.chuva != null ? num(cl.chuva, 1) + ' mm' : '—'}</dd></dl></div>
+        <div class="pv-dias">${(cl.dias || []).map((d) => `<div><small>${DIAS[parseISO(d.data).getDay()].replace(/^./, (c) => c.toUpperCase())}</small>${climaSVG(d.codigo)}<b>${num(d.max, 0)}°</b><em>${num(d.min, 0)}°${d.chuvaP != null ? ` · ${d.chuvaP}%` : ''}</em></div>`).join('')}</div>
+        ${cl.simulado ? '<p class="muted small">Previsão simulada: dentro do claude.ai a página não acessa serviços de clima. Na versão publicada no Cloudflare ela vem do Open-Meteo.</p>' : ''}</section>
+      <h2 class="sec claro">Alertas da lavoura <span class="pill bad">${al.length}</span></h2>
       <div class="al-list big">${al.map((a) => `<button class="al-it ${a.nivel}" data-act="${a.act}" ${a.arg}>${ic(a.ic)}<span><b>${esc(a.t)}</b><small>${esc(a.s)}</small></span>${ic('seta')}</button>`).join('') || '<p class="muted">Nenhum alerta. Tudo em dia.</p>'}</div>`;
+    },
+  },
+
+  // =========================================================== DETALHE DA REGIÃO
+  regiao: {
+    render(ui) {
+      const m = ui.model;
+      const r = ui.farm.regionById.get(ui.regiaoSel) || ui.farm.regions[0];
+      ui.regiaoSel = r.id;
+      const aba = vs.rgTab || 'visao';
+      const P = estagio(r, m.safra) === 'P';
+      const sd = saudeRegiao(ui, r);
+      const ops = m.osList().filter((o) => o.ruas?.[r.id] && !['IR01', 'AD02', 'IR02'].includes(o.tarefa));
+      let body = '';
+      if (aba === 'visao') {
+        const cls = sd.total >= 85 ? 'Bom' : sd.total >= 70 ? 'Regular' : 'Atenção';
+        body = `<section class="card big"><div class="card-h"><h3>${ic('folha')} Saúde da lavoura</h3></div><div class="sd">${donut([{ v: sd.total, cor: sd.total >= 85 ? '#2f8a2a' : sd.total >= 70 ? '#e0a526' : '#d9473a' }, { v: 100 - sd.total, cor: 'transparent' }], { centro: `${num(sd.total, 0)}%`, sub: cls, tam: 130, esp: 14 })}
+          <ul class="sd-l">${sd.itens.map((x) => `<li><span>${esc(x.l)}</span><b>${x.v == null ? '—' : num(x.v, 0) + '%'}</b><span class="prog"><span style="width:${x.v || 0}%;background:${(x.v || 0) >= 85 ? '#2f8a2a' : (x.v || 0) >= 70 ? '#e0a526' : '#d9473a'}"></span></span></li>`).join('')}</ul></div>
+          <p class="muted small">Calculado com estande (plantas vivas), sanidade (último monitoramento × nível de controle), nutrição (classes da análise de solo) e uniformidade da irrigação (CUD). Vigor por satélite (NDVI) e umidade do solo por sensor entram quando houver esses dados.</p></section>
+          <section class="card big"><div class="card-h"><h3>Últimas operações</h3><button class="iconlink" data-act="viewAct" data-a="tab" data-t="ops">Ver todas ${ic('seta')}</button></div><ul class="tl">${ops.slice(0, 4).map((o) => `<li><span class="tl-ck ${o.status === 'concluida' ? 'on' : ''}">${ic('check2')}</span><button class="tl-t" data-act="abrirOS" data-id="${o.id}"><b>${esc(nomeCurto(o.tarefa))}</b><small>${fmtDate(o.data)}</small></button>${ic('seta')}</li>`).join('') || '<li class="muted">Nenhuma.</li>'}</ul></section>
+          <div class="os-act"><button class="btn pri" data-act="viewAct" data-a="mapa" data-r="${r.id}">${ic('cubo')} Ver no Mapa 3D</button><button class="btn" data-act="novaOS" data-ruas='${esc(JSON.stringify(regRuas(r)))}'>${ic('mais')} Lançar operação</button></div>`;
+      } else if (aba === 'ops') {
+        const pend = m.pendenciasRegiao(r);
+        body = `${pend.length ? `<section class="card big"><div class="card-h"><h3>Pendências do plano</h3></div><ul class="plan">${pend.map((o) => `<li class="${STCLS[o.st]}"><span class="pl-dot"></span><div><b>${esc(o.nome)}</b><small>${fmtDateShort(o.ini)} a ${fmtDateShort(o.fim)} · ${o.ruas.length} ruas</small></div>${chip(STNOME[o.st], STCLS[o.st])}<button class="mini" data-act="novaOS" data-ruas='${esc(JSON.stringify(regRuas(r)))}' data-tarefa="${o.tarefa}">Lançar</button></li>`).join('')}</ul></section>` : ''}
+          <section class="card big"><div class="card-h"><h3>Operações da região</h3></div><ul class="list">${ops.slice(0, 40).map((o) => `<li><button data-act="abrirOS" data-id="${o.id}"><span>${fmtDate(o.data)}</span><b>${esc(nomeCurto(o.tarefa))}</b>${chip(STATUS_OS[o.status]?.nome || o.status, STATUS_OS[o.status]?.cls)}</button></li>`).join('')}</ul></section>`;
+      } else if (aba === 'analises') {
+        const so = m.soloAtual(r.id);
+        const f = m.fitoAtual(r.id);
+        body = `<section class="card big"><div class="card-h"><h3>${ic('solo')} Solo (0–20 cm)</h3><small class="muted">${so ? fmtDate(so.data) : 'sem análise'}</small></div>${so ? gradeSolo(so.a020) : '<p class="muted">Nenhuma análise.</p>'}<button class="btn sm" data-act="viewAct" data-a="solo" data-r="${r.id}">Ver recomendação</button></section>
+          <section class="card big"><div class="card-h"><h3>${ic('fito')} Pragas e doenças</h3><small class="muted">${f ? fmtDate(f.data) : 'sem leitura'}</small></div>${f ? barH(PRAGAS.map((p) => ({ l: p.nome, v: f.vals[p.k] ?? 0, ref: p.nc, txt: `${num(f.vals[p.k] ?? 0, 1)}%`, cor: (f.vals[p.k] ?? 0) >= p.nc ? 'var(--bad)' : 'var(--ok)' })), { max: 40 }) : ''}</section>`;
+      } else {
+        const fotos = ui.store.all('fotos').filter((x) => x.reg === r.id).sort((a, b) => (a.quando < b.quando ? 1 : -1));
+        body = `<section class="card big"><div class="card-h"><h3>${ic('grao')} Colheitas</h3></div><table class="tbl sm"><thead><tr><th>Safra</th><th>Sacas</th><th>sc/ha</th><th>Previsão</th></tr></thead><tbody>${m.safrasColhidas().map((a) => { const c = m.colheitaRegiao(r, a); const pv = m.previsao(r, a); return c.sacas || pv ? `<tr><td>${a}</td><td>${c.sacas ? num(c.sacas, 0) : '—'}</td><td>${c.sacas ? num(c.schaTotal, 1) : '—'}</td><td>${pv ? num(pv.scha, 1) + ' sc/ha' : '—'}</td></tr>` : ''; }).join('')}</tbody></table></section>
+          <section class="card big"><div class="card-h"><h3>Fotos</h3><button class="mini" data-act="foto">${ic('mais')} Foto</button></div>${fotos.length ? `<div class="ft-g">${fotos.map((x) => `<button data-act="verFoto" data-id="${x.id}"><img src="${x.img}" alt="${esc(x.tipo || 'Foto')}"><small>${fmtDate(x.data).slice(0, 5)}</small></button>`).join('')}</div>` : '<p class="muted">Nenhuma foto desta região.</p>'}</section>`;
+      }
+      return `<div class="rg-ban">${cena(P ? 'trator' : 'solo', '#2f8a2a')}<span class="rg-dot st-${situacaoRegiao(ui, r)}"></span></div>
+        <section class="card big rg-st"><div><span>${ic('campo')}</span><small>Área</small><b>${num(r.areaHa, 1)} ha</b></div><div><span>${ic('folha')}</span><small>Variedade</small><b>${esc(r.variedade.split(' ')[0])}</b></div><div><span>${ic('planta')}</span><small>Plantio</small><b>${r.plantio}</b></div><div><span>${ic('mira')}</span><small>Esp. (m)</small><b>${num(r.espLinha, 1)} × ${num(r.espPlanta, 1)}</b></div></section>
+        <div class="segtabs sm">${[['visao', 'Visão geral'], ['ops', 'Operações'], ['analises', 'Análises'], ['hist', 'Histórico']].map(([k, n]) => `<button class="${aba === k ? 'on' : ''}" data-act="viewAct" data-a="tab" data-t="${k}">${n}</button>`).join('')}</div>${body}`;
+    },
+    act(ui, d) {
+      if (d.a === 'tab') { vs.rgTab = d.t; ui.renderView(); }
+      if (d.a === 'mapa') { ui.go('mapa'); ui.escolherRegiao(d.r); ui.scene.vistaPanoramica(d.r); }
+      if (d.a === 'solo') { vs.soloReg = d.r; ui.go('solo'); }
+    },
+  },
+
+  // =========================================================== MANEJO DO CAFÉ (calendário do ciclo)
+  manejo: {
+    render(ui) {
+      const m = ui.model;
+      const S = +vs.mjSafra || m.safra;
+      const meses = new Map();
+      for (const r of ui.farm.regions) {
+        const amostra = r.rows[Math.floor(r.rows.length / 2)];
+        const plano = S === m.safra ? m.rowPlan(amostra) : m.plano(r, S).map((o) => ({ ...o, st: 'feita' }));
+        for (const o of plano) {
+          if (o.recorrente) continue;
+          const mk = o.ini.slice(0, 7);
+          if (!meses.has(mk)) meses.set(mk, new Map());
+          const g = meses.get(mk);
+          if (!g.has(o.key)) g.set(o.key, { ...o, regs: [], sts: [] });
+          g.get(o.key).regs.push(r.id); g.get(o.key).sts.push(o.st);
+        }
+      }
+      const ord = [...meses.keys()].sort();
+      const mesAtual = m.hoje.slice(0, 7);
+      const stG = (sts, opc) => sts.every((x) => x === 'feita') ? 'feita' : sts.includes('atrasada') ? 'atrasada' : sts.includes('agora') ? 'agora' : sts.includes('feita') ? 'agora' : opc ? 'opcional' : 'futura';
+      const icSt = { feita: `<span class="mj-s ok">${ic('check2')}</span>`, agora: `<span class="mj-s now">${ic('agenda')}</span>`, atrasada: `<span class="mj-s bad">${ic('aviso')}</span>`, futura: '<span class="mj-s fut"></span>', opcional: '<span class="mj-s fut"></span>' };
+      return `${head('Manejo do Café', `Calendário do ciclo ${S - 1}/${S}: o que fazer em cada mês e o que já foi feito`)}
+        <label class="safrasel">${ic('agenda')}<select data-chg="viewChg" data-k="mjSafra">${[m.safra, m.safra - 1].map((a) => `<option value="${a}" ${a === S ? 'selected' : ''}>Ciclo ${a - 1}/${a}</option>`).join('')}</select></label>
+        <div class="mj">${ord.map((mk) => { const [y, mm] = mk.split('-').map(Number); const itens = [...meses.get(mk).values()]; return `<section class="mj-m ${mk === mesAtual ? 'atual' : ''}"><div class="mj-b"><b>${MESES[mm - 1].toUpperCase()}</b><small>${y}</small></div><ul>${itens.map((o) => { const st = stG(o.sts, o.opcional); const regs = [...new Set(o.regs)]; return `<li class="mj-${st}"><div><b>${esc(o.nome)}</b><small>${regs.length === ui.farm.regions.length ? 'Todas as regiões' : regs.map((x) => x.replace('R', 'Região ')).join(', ')}${o.opcional ? ' · conforme necessidade' : ''}</small></div>${icSt[st]}</li>`; }).join('')}</ul></section>`; }).join('')}</div>`;
+    },
+    chg(ui, t) { vs[t.dataset.k] = +t.value; ui.renderView(); },
+  },
+
+  // =========================================================== MODO DE CAMPO
+  campo: {
+    render(ui) {
+      const on = navigator.onLine !== false;
+      const pend = ui.store.pendentes?.length || 0;
+      const fotos = ui.store.all('fotos').sort((a, b) => (a.quando < b.quando ? 1 : -1)).slice(0, 12);
+      const cks = ui.store.all('checklists').sort((a, b) => (a.data < b.data ? 1 : -1)).slice(0, 5);
+      const r = ui.regiaoSel || ui.farm.regions[0].id;
+      const ruas = esc(JSON.stringify(regRuas(ui.farm.regionById.get(r))));
+      return `${head('Modo de Campo', 'Lançamentos rápidos na lavoura, com ou sem sinal')}
+        <div class="cp-st ${on ? 'on' : 'off'}">${ic(on ? 'nuvemok' : 'nuvem')}<span>${on ? 'Online' : 'Offline: os registros ficam no aparelho'}</span></div>
+        <div class="cp-ban">${cena('trator', '#2f8a2a')}</div>
+        <div class="cp-g">
+          <button class="cp-b v" data-act="novaOS">${ic('trator')}<span>Registrar operação</span></button>
+          <button class="cp-b c" data-act="foto">${ic('expandir')}<span>Fotos da lavoura</span></button>
+          <button class="cp-b c" data-act="novaOS" data-tarefa="MN01" data-ruas="${ruas}">${ic('fito')}<span>Ocorrência<br><small>(pragas e doenças)</small></span></button>
+          <button class="cp-b c" data-act="checklist">${ic('check')}<span>Checklist<br><small>(EPI e segurança)</small></span></button>
+        </div>
+        <button class="cp-sync" data-act="sincronizar">${ic('nuvemok')}<span><b>Sincronizar dados</b><small>${ui.store.mode === 'compartilhado' ? (pend ? `${pend} registro(s) pendente(s)` : 'Nenhum registro pendente') : 'Dados salvos neste aparelho'}</small></span></button>
+        ${fotos.length ? `<section class="card big"><div class="card-h"><h3>Fotos recentes</h3></div><div class="ft-g">${fotos.map((x) => `<button data-act="verFoto" data-id="${x.id}"><img src="${x.img}" alt="${esc(x.tipo || 'Foto')}"><small>${esc(x.reg)} · ${fmtDate(x.data).slice(0, 5)}</small></button>`).join('')}</div></section>` : ''}
+        ${cks.length ? `<section class="card big"><div class="card-h"><h3>Checklists</h3></div><ul class="list">${cks.map((c) => `<li><button><span>${fmtDate(c.data)}</span><b>${esc(c.reg)} · ${esc(c.operador || '')}</b>${chip(`${c.ok}/${c.total}`, c.ok === c.total ? 'st-ok' : 'st-warn')}</button></li>`).join('')}</ul></section>` : ''}`;
     },
   },
 
   // =========================================================== PERFIL
   perfil: {
+    chg(ui, t) { if (t.dataset.k === 'nome') { ui.setNomeUsuario(t.value.trim()); ui.toast('Nome salvo neste aparelho.'); } },
     render(ui) {
       const nome = ui.nomeUsuario();
       const sm = ui.store.mode;
@@ -216,7 +322,7 @@ export const VIEWS = {
       <section class="card big"><div class="card-h"><h3>${ic('camadas')} Qualidade do 3D</h3></div><div class="seg">${Object.entries(QUALIDADES).map(([k, v]) => `<button class="${ui.scene.qNome === k ? 'on' : ''}" data-act="qualidade" data-q="${k}">${v.nome}</button>`).join('')}</div></section>
       <div class="pf-links">${links.map(([v, n, i]) => `<button data-act="go" data-v="${v}">${ic(i)}<span>${n}</span>${ic('seta')}</button>`).join('')}</div>`;
     },
-    chg(ui, t) { if (t.dataset.k === 'nome') { ui.setNomeUsuario(t.value.trim()); ui.toast('Nome salvo neste aparelho.'); } },
+    chg0(ui, t) { if (t.dataset.k === 'nome') { ui.setNomeUsuario(t.value.trim()); ui.toast('Nome salvo neste aparelho.'); } },
   },
 
   // =========================================================== PAINEL DE TRABALHO
@@ -360,6 +466,8 @@ export const VIEWS = {
       if (d.a === 'opsAba') vs.opsAba = d.t;
       if (d.a === 'opsMes') { const [y, mm] = (vs.opsMes || ui.model.hoje.slice(0, 7)).split('-').map(Number); const dt = new Date(y, mm - 1 + +d.d, 1); vs.opsMes = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`; }
       if (d.a === 'opsRot') vs.opsRot = !vs.opsRot;
+      if (d.a === 'opsModo') vs.opsModo = d.m;
+      if (d.a === 'opsGrupo') { abrirGrupo(ui, d.t); return; }
       if (d.a === 'aba') vs.agendaAba = d.t;
       if (d.a === 'dia') vs.agendaDia = d.d;
       if (d.a === 'osSt') {
@@ -375,6 +483,7 @@ export const VIEWS = {
   // =========================================================== SOLO
   solo: {
     render(ui) {
+      if (window.innerWidth <= 760) return soloMobile(ui);
       const m = ui.model;
       const rid = S('soloReg', ui.farm.regions[0].id);
       const reg = ui.farm.regionById.get(rid);
@@ -412,7 +521,8 @@ export const VIEWS = {
       </div>
       ${card('Histórico de análises', `<table class="tbl click"><thead><tr><th>Data</th><th>pH</th><th>P</th><th>K</th><th>Ca</th><th>Mg</th><th>V%</th><th>m%</th><th>B</th><th>Zn</th></tr></thead><tbody>${hist.map((h) => { const d = interpretar(h.a020).d; return `<tr data-act="abrirSolo" data-id="${h.id}"><td>${fmtDate(h.data)}${demoTag(h)}</td><td>${h.a020.ph}</td><td>${h.a020.p}</td><td>${h.a020.k}</td><td>${h.a020.ca}</td><td>${h.a020.mg}</td><td>${num(d.V, 0)}</td><td>${num(d.m, 0)}</td><td>${h.a020.b ?? '—'}</td><td>${h.a020.zn ?? '—'}</td></tr>`; }).join('')}</tbody></table>`)}`;
     },
-    act(ui, d) { if (d.a === 'reg') { vs.soloReg = d.r; ui.renderView(); } },
+    act(ui, d) { if (d.a === 'reg') { vs.soloReg = d.r; ui.renderView(); } if (d.a === 'rec') { vs.soloRec = !vs.soloRec; ui.renderView(); } if (d.a === 'prof') { vs.soloProf = d.p; ui.renderView(); } },
+    chg(ui, t) { if (t.dataset.k === 'soloReg') { vs.soloReg = t.value; ui.renderView(); } },
   },
 
   // =========================================================== FITOSSANIDADE
@@ -512,6 +622,7 @@ export const VIEWS = {
   // =========================================================== EQUIPAMENTOS
   equipamentos: {
     render(ui) {
+      if (window.innerWidth <= 760) return maquinasMobile(ui);
       const eqs = ui.model.equipList();
       return `${head('Máquinas e GPS', 'Cadastro, posição e operação de cada máquina. A posição vem do rastreador, de um arquivo de trilha ou da simulação.', `<button class="btn pri" data-act="novoEquip">${ic('mais')} Cadastrar máquina</button>`)}
       ${card('Agora', `<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Máquina</th><th>Tipo</th><th>Estado</th><th>Velocidade</th><th>Rua</th><th>Operação</th><th>Fonte GPS</th><th></th></tr></thead><tbody id="eqRows">${eqRows(ui)}</tbody></table></div>`)}
@@ -521,6 +632,11 @@ export const VIEWS = {
       </div>`;
     },
     live(ui) { const el = document.getElementById('eqRows'); if (el) el.innerHTML = eqRows(ui); },
+    act(ui, d) {
+      if (d.a === 'mqAba') { vs.mqAba = d.t; ui.renderView(); }
+      if (d.a === 'mqStatus') { const e = ui.model.equipMap()[d.id]; if (e) ui.store.put('equip', { ...e, status: e.status === 'manutencao' ? 'disponivel' : 'manutencao' }).then(() => ui.toast('Situação da máquina atualizada.')); }
+      if (d.a === 'mqAbrir') { const mc = ui.sim.machines.find((x) => x.id === d.id); if (mc && mc.estado !== 'parado') ui.acompanhar(d.id); else ui.forms.equip(ui.model.equipMap()[d.id]); }
+    },
   },
 
   // =========================================================== MANUTENÇÃO
@@ -843,21 +959,28 @@ function ultimaOp(ui, r) {
 }
 function heroMobile(ui) {
   const m = ui.model, farm = ui.farm, cl = ui.clima || {}, cfg = ui.farmConfig();
-  const d = parseISO(m.hoje);
-  const dia = DIAS[d.getDay()];
-  const data = `${dia[0].toUpperCase()}${dia.slice(1)}, ${d.getDate()} de ${MESES[d.getMonth()][0].toUpperCase()}${MESES[d.getMonth()].slice(1)} de ${d.getFullYear()}`;
   const nome = ui.nomeUsuario();
-  const sd = ui.saudacao().replace('!', '');
-  const prod = sum(farm.regions.filter((r) => estagio(r, m.safra) === 'P'), (r) => r.areaHa);
-  const form = farm.totais.areaHa - prod;
-  const tiles = [['mapa', 'Mapa 3D', 'mapa'], ['agenda', 'Operações', 'operacoes'], ['regioes', 'Regiões', 'regioes'], ['trabalho', 'Máquinas', 'maquinas'], ['solo', 'Solo e Nutrição', 'solo'], ['fitossanidade', 'Pragas e Doenças', 'pragas'], ['colheita', 'Colheita', 'colheita'], ['producao', 'Produção', 'producao'], ['relatorios', 'Relatórios', 'relatorios']];
-  return `<section class="hero mob-only">
+  const nAl = ui.alertas().length;
+  const ciclo = mean(farm.regions.map((r) => progressoSafra(ui, r)));
+  const hoje = m.osDoDia();
+  const prox = m.osList().filter((o) => (o.status === 'planejada' || o.status === 'execucao') && o.data >= m.hoje && o.data <= addDays(m.hoje, 10) && !['IR01', 'AD02', 'IR02', 'MN01'].includes(o.tarefa)).sort((a, b) => (a.data < b.data ? -1 : 1)).slice(0, 4);
+  const quando = (d) => d === m.hoje ? ['Hoje', 'st-ok'] : d === addDays(m.hoje, 1) ? ['Amanhã', 'st-plan2'] : [fmtDateShort(d), 'st-plan2'];
+  const tiles = [['mapa', 'Mapa 3D', 'mapa'], ['agenda', 'Operações', 'operacoes'], ['regioes', 'Regiões', 'regioes'], ['equipamentos', 'Máquinas', 'maquinas'], ['solo', 'Solo e Nutrição', 'solo'], ['fitossanidade', 'Pragas e Doenças', 'pragas'], ['manejo', 'Manejo do Café', 'colheita'], ['producao', 'Produção', 'producao'], ['campo', 'Modo de Campo', 'relatorios']];
+  return `<section class="hero h2 mob-only">
     <div class="hero-art">${ramoSVG()}</div>
-    <div class="hero-logo">${logoSVG()}<div class="wm"><b>Lavoura 3D</b><i>Café</i></div></div>
-    <div class="hero-l"><div><h2>${esc(sd)}${nome ? `, ${esc(nome)}` : '!'}</h2><p>${esc(data)}</p></div>
-    <button class="hero-w" data-act="go" data-v="inicio" aria-label="Tempo agora">${climaSVG(cl.codigo)}<span><b>${cl.temp != null ? num(cl.temp, 0) + '°C' : '—'}</b><small>${esc((cfg.municipio || '').replace(' – ', '/').replace(' - ', '/'))}</small></span></button></div>
+    <div class="h2-top"><div class="hero-logo">${logoSVG()}<div class="wm"><b>Lavoura 3D</b><i>Café</i></div></div><button class="h2-bell" data-act="go" data-v="alertas" aria-label="Alertas">${ic('sino')}${nAl ? `<i class="nb-badge">${nAl}</i>` : ''}</button></div>
+    <h2>Olá${nome ? `, ${esc(nome)}` : '!'}</h2>
+    <button class="h2-farm" data-act="go" data-v="ajustes">${esc(cfg.nome)} ${ic('chev')}</button>
   </section>
-  <div class="stats3 mob-only"><div><b>${num(farm.totais.areaHa, 0)} <small>ha</small></b><span>Área total</span></div><div><b>${num(prod, 0)} <small>ha</small></b><span>Em produção</span></div><div><b>${num(form, 0)} <small>ha</small></b><span>Em formação</span></div></div>
+  <button class="clima-c mob-only" data-act="go" data-v="alertas"><span class="cc-now">${climaSVG(cl.codigo)}<span><b>${cl.temp != null ? num(cl.temp, 0) : '—'}<sup>°C</sup></b><small>${esc((cfg.municipio || '').replace(' – ', '/'))}</small></span></span><span class="cc-i"><small>Umidade</small><b>${cl.ur != null ? num(cl.ur, 0) + '%' : '—'}</b></span><span class="cc-i"><small>Vento</small><b>${cl.vento != null ? num(cl.vento, 0) + ' km/h' : '—'}</b></span></button>
+  <div class="k4m mob-only">
+    <button class="k g" data-act="go" data-v="regioes">${ic('campo')}<b>${num(farm.totais.areaHa, 1)} ha</b><small>Área total</small></button>
+    <button class="k t" data-act="go" data-v="regioes">${ic('folha')}<b>${farm.regions.length}</b><small>Regiões</small></button>
+    <button class="k y" data-act="go" data-v="manejo">${ic('mira')}<b>${num(ciclo, 0)}%</b><small>Ciclo ${m.safra}</small></button>
+    <button class="k o" data-act="go" data-v="agenda">${ic('check')}<b>${hoje.filter((o) => !['IR01', 'AD02', 'IR02', 'MN01'].includes(o.tarefa)).length}</b><small>Tarefas hoje</small></button>
+  </div>
+  <section class="card big prox mob-only"><div class="card-h"><h3>Próximas atividades</h3><button class="iconlink" data-act="go" data-v="agenda">Ver todas ${ic('seta')}</button></div>
+    ${prox.length ? `<ul class="tl">${prox.map((o) => { const q = quando(o.data); return `<li><button class="tl-ck ${o.status === 'concluida' ? 'on' : ''}" data-act="tarefaOk" data-id="${o.id}" aria-label="Marcar como feita">${ic('check2')}</button><button class="tl-t" data-act="abrirOS" data-id="${o.id}"><b>${esc(nomeCurto(o.tarefa))} – ${esc(regioesTxt(ui, o))}</b><small>${num(m.areaOS(o), 2)} ha</small></button>${chip(q[0], q[1])}</li>`; }).join('')}</ul>` : '<p class="muted">Nada programado para os próximos dias.</p>'}</section>
   <div class="tiles9 mob-only">${tiles.map(([v, n, i]) => `<button class="t9" data-act="go" data-v="${v}">${tileIcon(i)}<span>${n}</span></button>`).join('')}</div>`;
 }
 function opsMobile(ui) {
@@ -887,13 +1010,88 @@ function opsMobile(ui) {
       <span class="oc-m"><span class="oc-t"><b>${esc(nomeCurto(o.tarefa))}</b>${chip(st[0], st[1])}</span><small>${esc(regioesTxt(ui, o))}${o.ruas ? ` · ${num(m.areaOS(o), 1)} ha` : ''}</small>
       ${o.status === 'execucao' ? `<span class="op-bar"><span class="prog"><span data-live="op-${o.id}" style="width:${pr ? pr.pct : 0}%"></span></span><small data-live="opt-${o.id}">${pr ? num(pr.pct, 0) + '%' : '—'}</small></span>` : ''}</span></button>`;
   };
+  const modo = vs.opsModo || 'tipo';
+  let lista = l.map(card).join('');
+  if (modo === 'tipo') {
+    const g = groupBy(l, (o) => o.tarefa);
+    lista = [...g].map(([t, os]) => {
+      const regs = new Set(os.flatMap((o) => Object.keys(o.ruas || {})));
+      const area = sum(os, (o) => m.areaOS(o));
+      const prs = os.map((o) => { if (o.status === 'concluida') return 100; if (o.status === 'planejada') return 0; const mc = ui.sim.machines.find((x) => x.os === o.id); return mc ? ui.sim.progresso(mc)?.pct || 0 : 50; });
+      const p = mean(prs);
+      const corA = p >= 99 ? '#2f8a2a' : p > 0 ? '#e0a526' : '#b9b4a6';
+      return `<button class="og" data-act="viewAct" data-a="opsGrupo" data-t="${t}"><span class="og-th">${cena(icTarefa(t))}</span><span class="og-m"><b>${esc(nomeCurto(t))}</b><small>${regs.size} região${regs.size === 1 ? '' : 'ões'} · ${num(area, 1)} ha${os.length > 1 ? ` · ${os.length} ordens` : ''}</small></span>${anel(p, corA, 46)}${ic('seta')}</button>`;
+    }).join('');
+  }
   return `<div class="ops-m">
     <div class="segtabs">${[['planejada', 'Planejamento'], ['execucao', 'Em andamento'], ['concluida', 'Concluídas']].map(([k, n]) => `<button class="${aba === k ? 'on' : ''}" data-act="viewAct" data-a="opsAba" data-t="${k}">${n}</button>`).join('')}</div>
     <div class="mesnav"><button data-act="viewAct" data-a="opsMes" data-d="-1" aria-label="Mês anterior">${ic('voltar')}</button><b>${MESES[mm - 1][0].toUpperCase()}${MESES[mm - 1].slice(1)} ${y}</b><button data-act="viewAct" data-a="opsMes" data-d="1" aria-label="Próximo mês">${ic('seta')}</button></div>
-    <div class="oc-list">${l.map(card).join('') || `<p class="vazio">Nenhuma operação ${aba === 'planejada' ? 'planejada' : aba === 'execucao' ? 'em andamento' : 'concluída'} neste mês.</p>`}</div>
+    <div class="ops-modo"><button class="${modo === 'tipo' ? 'on' : ''}" data-act="viewAct" data-a="opsModo" data-m="tipo">Por tipo</button><button class="${modo === 'data' ? 'on' : ''}" data-act="viewAct" data-a="opsModo" data-m="data">Por data</button></div>
+    <div class="oc-list">${lista || `<p class="vazio">Nenhuma operação ${aba === 'planejada' ? 'planejada' : aba === 'execucao' ? 'em andamento' : 'concluída'} neste mês.</p>`}</div>
     ${nRot ? `<button class="tl-mais claro" data-act="viewAct" data-a="opsRot">${vs.opsRot ? 'Ocultar' : 'Mostrar'} ${nRot} rotina${nRot > 1 ? 's' : ''} (fertirrigação, irrigação, filtros, monitoramento)</button>` : ''}
     <section class="card big resumo"><div class="card-h"><h3>Resumo do mês</h3></div><div class="rs4">
       <div>${ic('trator')}<b>${base.length}</b><small>Operações</small></div><div>${ic('campo')}<b>${num(area, 0)} ha</b><small>Área atendida</small></div><div>${ic('agenda')}<b>${num(horas, 0)} h</b><small>Horas máquinas</small></div><div>${ic('usuario')}<b>${pessoas}</b><small>Pessoas</small></div></div></section>
     <button class="btn pri wide" data-act="novaOS">${ic('mais')} Nova operação</button>
   </div>`;
+}
+
+function saudeRegiao(ui, r) {
+  const m = ui.model;
+  const est = m.estande(r);
+  const estande = 100 - est.pctFalhas;
+  const f = m.fitoAtual(r.id);
+  const sanidade = f ? mean(PRAGAS.filter((p) => f.vals[p.k] != null).map((p) => Math.max(0, Math.min(1, 1 - (f.vals[p.k] / p.nc) * 0.5)))) * 100 : null;
+  const so = m.soloAtual(r.id);
+  let nutricao = null;
+  if (so) { const it = interpretar(so.a020); const cls = Object.entries(it.cls).filter(([k, c]) => c && !['al', 'hal', 'm'].includes(k)); nutricao = cls.length ? (cls.filter(([, c]) => c.i >= 2).length / cls.length) * 100 : null; }
+  const cuds = r.setores.map((s) => m.cudSetor(s.id)?.val).filter((v) => v != null);
+  const irrigacao = cuds.length ? Math.min(100, mean(cuds)) : null;
+  const itens = [{ l: 'Estande (plantas vivas)', v: estande }, { l: 'Sanidade', v: sanidade }, { l: 'Nutrição (solo)', v: nutricao }, { l: 'Irrigação (uniformidade)', v: irrigacao }];
+  const vals = itens.map((x) => x.v).filter((v) => v != null);
+  return { itens, total: vals.length ? mean(vals) : 0 };
+}
+function gradeSolo(a) {
+  const it = interpretar(a);
+  const t = [['pH', a.ph, '', it.cls.ph], ['P', a.p, 'mg/dm³', it.cls.p], ['K', a.k != null ? a.k / 391 : null, 'cmolc', it.cls.k], ['Ca', a.ca, 'cmolc', it.cls.ca], ['Mg', a.mg, 'cmolc', it.cls.mg], ['V%', it.d.V, '%', it.cls.V]];
+  const cor = (c) => !c ? 'n' : c.i >= 3 ? 'ok' : c.i === 2 ? 'md' : 'bx';
+  const nome = (c) => !c ? '' : c.i >= 3 ? 'Adequado' : c.i === 2 ? 'Médio' : 'Baixo';
+  return `<div class="sg">${t.map(([l, v, u, c]) => `<div class="sg-${cor(c)}"><small>${l}</small><b>${v == null ? '—' : num(v, v < 10 ? (l === 'K' ? 2 : 1) : 0)}${u && l !== 'V%' ? ` <em>${u}</em>` : l === 'V%' ? '%' : ''}</b><span>${nome(c)}</span></div>`).join('')}</div>`;
+}
+function soloMobile(ui) {
+  const m = ui.model;
+  const rid = vs.soloReg || ui.regiaoSel || ui.farm.regions[0].id;
+  const reg = ui.farm.regionById.get(rid);
+  const rc = m.recomendacao(reg);
+  const prof = vs.soloProf || '020';
+  const a = rc ? (prof === '020' ? rc.solo.a020 : rc.solo.a2040) : null;
+  return `<div class="so-ban">${cena('solo')}</div>
+    <section class="card big so-sel"><select data-chg="viewChg" data-k="soloReg" aria-label="Região">${ui.farm.regions.map((r) => `<option value="${r.id}" ${r.id === rid ? 'selected' : ''}>${esc(r.nome)}</option>`).join('')}</select><small>${rc ? `Última análise: ${fmtDate(rc.solo.data)}` : 'Sem análise'}</small></section>
+    ${rc ? `<div class="segtabs sm"><button class="${prof === '020' ? 'on' : ''}" data-act="viewAct" data-a="prof" data-p="020">Resultados (0–20 cm)</button><button class="${prof === '2040' ? 'on' : ''}" data-act="viewAct" data-a="prof" data-p="2040">20–40 cm</button></div>
+    ${a ? gradeSolo(a) : '<p class="vazio">Sem dados desta camada.</p>'}
+    <button class="btn terra wide" data-act="viewAct" data-a="rec">${ic('solo')} ${vs.soloRec ? 'Ocultar' : 'Ver'} recomendação de adubação</button>
+    ${vs.soloRec ? `<section class="card big">${ui.kv([['Calcário', `<b>${num(rc.rec.calagem, 2)} t/ha</b> · ${esc(rc.rec.calcario)}`], ['Gesso', rc.rec.gessagem ? `<b>${num(rc.rec.gessagem, 0)} kg/ha</b>` : 'Não indicado'], ['N', rc.rec.N != null ? `<b>${num(rc.rec.N, 0)} kg/ha/ano</b>` : '—'], ['P₂O₅', rc.rec.P2O5 != null ? `<b>${num(rc.rec.P2O5, 0)} kg/ha/ano</b>` : '—'], ['K₂O', rc.rec.K2O != null ? `<b>${num(rc.rec.K2O, 0)} kg/ha/ano</b>` : '—']])}${rc.rec.alertas.length ? `<ul class="alerts">${rc.rec.alertas.map((x) => `<li class="al warn"><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}<p class="nota small">Ponto de partida pelas tabelas configuradas (5ª Aproximação). Confirme com o agrônomo.</p></section>` : ''}` : ''}
+    <button class="btn wide" data-act="novoSolo" data-reg="${rid}">${ic('mais')} Nova análise</button>`;
+}
+function maquinasMobile(ui) {
+  const m = ui.model;
+  const aba = vs.mqAba || 'frota';
+  const eqs = m.equipList();
+  const tipoCena = { colhedora: 'colhedora', pulverizador: 'pulverizador', adubadora: 'adubadora', rocadeira: 'rocadeira', caminhao: 'caminhao', recolhedora: 'colhedora' };
+  const st = (e) => { const mc = ui.sim.machines.find((x) => x.id === e.id); if (e.status === 'manutencao') return ['Em manutenção', 'mq-man']; if (mc && mc.estado !== 'parado') return ['Em operação', 'mq-op']; return ['Disponível', 'mq-ok']; };
+  let body = '';
+  if (aba === 'frota') body = eqs.map((e) => { const s2 = st(e); return `<button class="mq" data-act="viewAct" data-a="mqAbrir" data-id="${e.id}"><span class="mq-th">${cena(tipoCena[e.tipo] || 'trator', TIPOS_EQUIP[e.tipo]?.cor)}</span><span class="mq-m"><b>${esc(e.nome)}</b><small>Horímetro: ${num(e.horimetro)} h</small><span class="mq-chip ${s2[1]}">${s2[0]}</span></span>${ic('seta')}</button>`; }).join('');
+  else if (aba === 'manut') body = eqs.filter((e) => e.horimetro).map((e) => { const rev = +e.revisao || 250; const prox = Math.ceil((e.horimetro + 1) / rev) * rev; const falta = prox - e.horimetro; const p = 100 - (falta / rev) * 100; return `<div class="mq mq-r"><span class="mq-m"><b>${esc(e.nome)}</b><small>Próxima revisão em ${num(prox)} h · faltam ${num(falta)} h</small><span class="prog"><span style="width:${p}%;background:${falta < rev * 0.15 ? '#d9473a' : '#2f8a2a'}"></span></span></span><button class="mini" data-act="viewAct" data-a="mqStatus" data-id="${e.id}">${e.status === 'manutencao' ? 'Liberar' : 'Em manutenção'}</button></div>`; }).join('');
+  else {
+    const S = m.safra;
+    const os = m.osList().filter((o) => o.equip && anoSafra(o.data) === S && o.status !== 'cancelada' && o.status !== 'planejada');
+    const linhas = eqs.map((e) => { const h = sum(os.filter((o) => o.equip === e.id), (o) => o.horas); return { e, h, c: h * (+e.custoHora || 0), d: h * (+e.consumo || 0) }; }).filter((x) => x.h);
+    body = `<section class="card big"><div class="card-h"><h3>Ciclo ${S - 1}/${S}</h3><b>${brl(sum(linhas, (x) => x.c))}</b></div><table class="tbl sm"><thead><tr><th>Máquina</th><th>Horas</th><th>Diesel</th><th>Custo</th></tr></thead><tbody>${linhas.map((x) => `<tr><td>${esc(x.e.nome)}</td><td>${num(x.h, 1)}</td><td>${num(x.d, 0)} L</td><td>${brl(x.c)}</td></tr>`).join('')}</tbody></table><p class="muted small">Horas lançadas nas ordens de serviço × custo/hora do cadastro.</p></section>`;
+  }
+  return `<div class="segtabs">${[['frota', 'Frota'], ['manut', 'Manutenção'], ['custos', 'Custos']].map(([k, n]) => `<button class="${aba === k ? 'on' : ''}" data-act="viewAct" data-a="mqAba" data-t="${k}">${n}</button>`).join('')}</div>
+    <div class="mq-l">${body}</div><button class="btn wide" data-act="novoEquip">${ic('mais')} Cadastrar máquina</button>`;
+}
+function abrirGrupo(ui, t) {
+  const m = ui.model;
+  const os = m.osList().filter((o) => o.tarefa === t && o.data.slice(0, 7) === (vs.opsMes || m.hoje.slice(0, 7)) && o.status === (vs.opsAba || 'planejada'));
+  ui.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Operações</div><h2>${esc(nomeCurto(t))}</h2></div><button class="dr-x" data-act="fecharModal">${ic('fechar')}</button></div><div class="m-b"><ul class="list">${os.map((o) => `<li><button data-act="abrirOS" data-id="${o.id}"><span>${fmtDate(o.data)}</span><b>${esc(regioesTxt(ui, o))} · ${num(m.areaOS(o), 1)} ha</b>${chip(STATUS_OS[o.status]?.nome, STATUS_OS[o.status]?.cls)}</button></li>`).join('')}</ul></div></div>`, 'fabsheet');
 }

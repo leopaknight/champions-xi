@@ -69,6 +69,8 @@ export class UI {
     window.addEventListener('hashchange', () => { const v = location.hash.slice(1) || 'inicio'; if (v !== this.view && (NAV.some((n) => n.id === v) || VIEWS[v])) this.go(v, false); });
     this.carregarClima();
     this._cel = this.ehCelular();
+    window.addEventListener('online', () => { if (this.view === 'campo') this.renderView(); });
+    window.addEventListener('offline', () => { if (this.view === 'campo') this.renderView(); });
     window.addEventListener('resize', debounce(() => { const c = this.ehCelular(); if (c !== this._cel) { this._cel = c; this.renderHeader(); this.renderMobMap(); if (this.view !== 'mapa') this.renderView(); } }, 200));
   }
 
@@ -168,10 +170,10 @@ export class UI {
   </main>
   <nav class="bottom">
     <button class="nav-b" data-act="go" data-v="inicio">${ic('casa')}<span>Início</span></button>
-    <button class="nav-b" data-act="go" data-v="mapa">${ic('folha')}<span>Lavoura</span></button>
-    <button class="fab" data-act="fab" aria-label="Novo lançamento">${ic('mais')}</button>
-    <button class="nav-b" data-act="go" data-v="alertas">${ic('sino')}<span>Alertas</span><i class="nb-badge" id="navBadge" hidden></i></button>
-    <button class="nav-b" data-act="go" data-v="perfil">${ic('usuario')}<span>Perfil</span></button>
+    <button class="nav-b" data-act="go" data-v="mapa">${ic('cubo')}<span>Lavoura</span></button>
+    <button class="nav-b" data-act="go" data-v="agenda">${ic('trator')}<span>Operações</span></button>
+    <button class="nav-b" data-act="go" data-v="producao">${ic('grafico')}<span>Produção</span></button>
+    <button class="nav-b" data-act="maisSheet" data-v="mais">${ic('menu')}<span>Mais</span><i class="nb-badge" id="navBadge" hidden></i></button>
   </nav>
   <div id="maisMenu" class="mais" hidden></div>
   <div id="modal" class="modal" hidden></div>
@@ -201,9 +203,16 @@ export class UI {
   }
 
   acts = {
-    go(d) { this.go(d.v); this.$('#maisMenu').hidden = true; this.fecharPops(); },
+    go(d) { if (!this.$('#modal').hidden && this.$('#modal .fabsheet')) this.closeModal(); this.go(d.v); this.$('#maisMenu').hidden = true; this.fecharPops(); },
     busca() { this.abrirBusca(); },
     fab() { this.abrirFab(); },
+    maisSheet() { this.abrirMais(); },
+    regiaoDet(d) { this.regiaoSel = d.r; this.scene.setRegiaoDestaque(d.r); this.closeModal(); this.go('regiao'); },
+    checklist() { this.forms.checklist({}); },
+    foto() { this.forms.foto(); },
+    verFoto(d) { const f = this.store.get('fotos', d.id); if (f) this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">${esc(f.tipo || 'Foto')} · ${fmtDate(f.data)}</div><h2>${esc(this.farm.regionById.get(f.reg)?.nome || f.reg)}${f.rua ? ' · ' + esc(f.rua) : ''}</h2></div><button class="dr-x" data-act="fecharModal">${ic('fechar')}</button></div><div class="m-b"><img class="ft-prev" src="${f.img}" alt="Foto da lavoura"><p>${esc(f.obs || '')}</p></div><div class="m-f"><span class="sp"></span><button class="btn ghost bad" data-act="apagarFoto" data-id="${f.id}">${ic('lixo')} Apagar</button></div></div>`); },
+    apagarFoto(d) { this.store.del('fotos', d.id); this.closeModal(); this.toast('Foto apagada.'); },
+    sincronizar() { if (this.store.mode !== 'compartilhado') { this.toast('Neste aparelho os dados já ficam salvos localmente. Use Exportar backup em Ajustes para levar a outro aparelho.'); return; } this.store.sincronizar().then((r) => this.toast(r.restantes ? `Enviados ${r.enviados}. ${r.restantes} aguardando sinal.` : 'Tudo sincronizado.')); },
     mobCor() { this.mapCtl('cor'); this.renderMobMap(); },
     mob3d() { this.scene.alternar3D(); },
     mobLocal() { this.scene.vistaPanoramica(this.regiaoSel || null); },
@@ -276,7 +285,8 @@ export class UI {
   go(v, push = true) {
     this.view = v;
     if (push) { try { history.replaceState(null, '', v === 'mapa' ? location.pathname + location.search : '#' + v); } catch { /* ignore */ } }
-    document.querySelectorAll('.nav-b, .side-b').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+    const naBarra = ['inicio', 'mapa', 'agenda', 'producao'];
+    document.querySelectorAll('.nav-b, .side-b').forEach((b) => b.classList.toggle('on', b.dataset.v === v || (b.dataset.v === 'mais' && !naBarra.includes(v))));
     const viewEl = this.$('#view');
     const mapEl = this.$('#map3d');
     this.scene.labelRenderer.domElement.style.visibility = v === 'mapa' || v === 'inicio' ? '' : 'hidden';
@@ -593,6 +603,12 @@ export class UI {
     this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Lançar</div><h2>O que você quer registrar?</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
       <div class="m-b"><div class="fab-g">${it.map(([a, n, i, extra]) => `<button data-act="${a}" ${extra}>${ic(i)}<span>${n}</span></button>`).join('')}</div></div></div>`, 'fabsheet');
   }
+  abrirMais() {
+    const it = [['campo', 'Modo de Campo', 'gps'], ['manejo', 'Manejo do Café', 'agenda'], ['alertas', 'Previsão e Alertas', 'nuvem'], ['regioes', 'Regiões', 'campo'], ['equipamentos', 'Máquinas', 'trator'], ['solo', 'Solo e Fertilidade', 'solo'], ['fitossanidade', 'Pragas e Doenças', 'fito'], ['colheita', 'Colheita', 'grao'], ['irrigacao', 'Irrigação', 'irrig'], ['manutencao', 'Manutenção', 'manut'], ['trabalho', 'Máquinas trabalhando', 'alvo'], ['inventario', 'Levantamento', 'invent'], ['relatorios', 'Relatórios', 'relat'], ['perfil', 'Perfil', 'usuario'], ['ajustes', 'Ajustes', 'config']];
+    const nAl = this.alertas().length;
+    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Lavoura 3D Café</div><h2>Mais</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
+      <div class="m-b"><div class="mais-g">${it.map(([v, n, i]) => `<button data-act="go" data-v="${v}">${ic(i)}<span>${n}</span>${v === 'alertas' && nAl ? `<i class="nb-badge">${nAl}</i>` : ''}</button>`).join('')}</div></div></div>`, 'fabsheet');
+  }
   abrirMenuMapa() {
     this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Mapa 3D</div><h2>Opções</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
       <div class="m-b"><h4>Modo</h4><div class="seg">${MODOS.map((m) => `<button class="${m.id === this.mode ? 'on' : ''}" data-act="mobModo" data-m="${m.id}">${m.nome}</button>`).join('')}</div>
@@ -618,9 +634,10 @@ export class UI {
         <button data-act="cinemaMapa" aria-label="Tela cheia">${ic('expandir')}</button></div>
       <div class="mm-bus" aria-hidden="true"><svg id="mmBus" viewBox="0 0 40 40"><path d="M20 5l9 27-9-6-9 6z" fill="#fff"/></svg></div>
       ${cm !== 'natural' ? `<div class="mm-leg"><b>${esc((CORES[this.mode].find((x) => x[0] === cm) || [])[1] || '')}</b><div class="lg-items">${this.legendHTML()}</div></div>` : ''}
-      <div class="mm-sheet"><i class="mm-handle"></i>
-        <button class="mm-top" data-act="selRegiao" data-r="${r.id}"><span class="mm-th">${rowsThumb(P ? '#3f8a34' : '#6fae4a', !P)}</span><span class="mm-n"><b>${esc(r.nome)}</b><small>${num(r.areaHa, 1)} ha · ${esc(r.variedade)}</small></span><span class="mm-go">${ic('seta')}</span></button>
-        <div class="mm-g"><span><em>Situação</em>${chip(P ? 'Em produção' : 'Em formação', P ? 'st-ok' : 'st-warn')}</span><span><em>Idade</em><b>${num(r.idade, 0)} ${r.idade < 1.5 ? 'ano' : 'anos'}</b></span><span><em>Última operação</em><b>${u ? `${esc((TAREFA[u.tarefa]?.nome || '').split(' (')[0].split(' — ')[0].split(':')[0])} (${fmtDate(u.data).slice(0, 5)})` : '—'}</b></span></div></div>`;
+      <div class="mm-sheet"><i class="mm-handle"></i>${(() => { const p = progressoSafra(this, r); return ''; })()}
+        <button class="mm-top" data-act="regiaoDet" data-r="${r.id}"><span class="mm-th">${rowsThumb(P ? '#3f8a34' : '#6fae4a', !P)}</span><span class="mm-n"><b>${esc(r.nome)}</b><small>${num(r.areaHa, 1)} ha · ${esc(r.variedade)}</small></span><span class="mm-go">${ic('seta')}</span></button>
+        <div class="mm-g"><span><em>Situação</em>${chip(P ? 'Em produção' : 'Em formação', P ? 'st-ok' : 'st-warn')}</span><span><em>Idade</em><b>${num(r.idade, 0)} ${r.idade < 1.5 ? 'ano' : 'anos'}</b></span><span><em>Última operação</em><b>${u ? `${esc((TAREFA[u.tarefa]?.nome || '').split(' (')[0].split(' — ')[0].split(':')[0])} (${fmtDate(u.data).slice(0, 5)})` : '—'}</b></span></div>
+        ${(() => { const p = progressoSafra(this, r); return `<div class="mm-prog"><span>Operações da safra</span><span class="prog"><span style="width:${p}%"></span></span><b>${num(p, 0)}%</b></div>`; })()}</div>`;
     this.atualizarBussola();
   }
   saudacao() { const h = new Date().getHours(); return h < 12 ? 'Bom dia!' : h < 18 ? 'Boa tarde!' : 'Boa noite!'; }
@@ -640,8 +657,8 @@ export class UI {
     const nb = this.$('#navBadge'); if (nb) { nb.hidden = !nAl; nb.textContent = nAl > 9 ? '9+' : String(nAl); }
     const mb = this.$('#mobBar');
     if (mb) {
-      const titulo = this.view === 'mapa' ? 'Mapa 3D da Lavoura' : n ? n.nome : '';
-      const subt = this.view === 'mapa' ? `${this.farmConfig().nome} · ${num(this.farm.totais.areaHa, 0)} ha` : this.view === 'agenda' ? `${this.farmConfig().nome}` : '';
+      const titulo = this.view === 'mapa' ? 'Mapa 3D da Lavoura' : this.view === 'regiao' ? (this.farm.regionById.get(this.regiaoSel)?.nome || 'Região') : this.view === 'solo' ? 'Solo e Fertilidade' : this.view === 'equipamentos' ? 'Máquinas e Equipamentos' : n ? n.nome : '';
+      const subt = this.view === 'mapa' ? `${this.farmConfig().nome} · ${num(this.farm.totais.areaHa, 0)} ha` : this.view === 'agenda' ? `${this.farmConfig().nome}` : this.view === 'regiao' ? (() => { const r = this.farm.regionById.get(this.regiaoSel); return r ? `${num(r.areaHa, 1)} ha · ${r.variedade}` : ''; })() : '';
       mb.innerHTML = `<button class="mb-back" data-act="go" data-v="inicio" aria-label="Voltar ao início">${ic('voltar')}</button><div class="mb-t"><b>${this.view === 'agenda' ? ic('trator') : ''}${esc(titulo)}</b>${subt ? `<small>${esc(subt)}</small>` : ''}</div>${this.view === 'mapa' ? `<button class="mb-k" data-act="mobMenu" aria-label="Opções do mapa">${ic('menu')}</button>` : `<button class="mb-k" data-act="busca" aria-label="Buscar">${ic('busca')}</button>`}`;
     }
   }
@@ -651,6 +668,10 @@ export class UI {
     for (const r of farm.regions) for (const a of m.fitoAtual(r.id)?.alertas || []) out.push({ nivel: 'bad', ic: 'fito', t: `${a.nome} · ${r.nome}`, s: `${num(a.v, 1)} ${a.un} (nível ${a.nc})`, act: 'go', arg: 'data-v="fitossanidade"' });
     for (const x of m.manutAbertas().filter((x) => x.prioridade === 'Alta')) out.push({ nivel: 'bad', ic: 'manut', t: x.titulo, s: x.rua || x.ativo || '', act: 'manut', arg: `data-id="${x.id}"` });
     for (const a of farm.assets.filter((a) => ['falha', 'alerta'].includes(m.assetStatus(a.id)))) out.push({ nivel: m.assetStatus(a.id) === 'falha' ? 'bad' : 'warn', ic: 'aviso', t: `${a.id} · ${STATUS_ATIVO[m.assetStatus(a.id)].nome}`, s: a.nome, act: 'ativo', arg: `data-id="${a.id}"` });
+    const cl = this.clima;
+    const mes = +m.hoje.slice(5, 7);
+    if (cl && cl.ur != null && cl.ur >= 75 && cl.temp >= 18 && cl.temp <= 28 && (mes >= 10 || mes <= 4)) out.unshift({ nivel: 'bad', ic: 'folha', t: 'Risco de ferrugem', s: 'Condição climática favorável (umidade alta e 18–28 °C no período chuvoso)', act: 'go', arg: 'data-v="fitossanidade"' });
+    if (this.store.pendentes?.length) out.push({ nivel: 'warn', ic: 'nuvem', t: `${this.store.pendentes.length} registro(s) aguardando envio`, s: 'Serão enviados quando houver sinal', act: 'go', arg: 'data-v="campo"' });
     for (const r of farm.regions) { const p = m.pendenciasRegiao(r).filter((x) => x.st === 'atrasada'); if (p.length) out.push({ nivel: 'warn', ic: 'agenda', t: `${p.length} operação(ões) atrasada(s) · ${r.nome}`, s: p.map((x) => x.nome).slice(0, 2).join(', '), act: 'go', arg: 'data-v="agenda"' }); }
     return out;
   }
@@ -720,12 +741,13 @@ export class UI {
     const sim = () => {
       const h = new Date().getHours() + new Date().getMinutes() / 60;
       const t = 22 + 7 * Math.sin(((h - 9) / 24) * Math.PI * 2);
-      return { temp: t, ur: Math.round(78 - (t - 18) * 2.4), vento: Math.round(6 + 6 * Math.abs(Math.sin(h / 3))), chuva: 0, codigo: h > 11 && h < 17 ? 2 : 1, fonte: 'Estação da fazenda (simulado)', simulado: true };
+      const dias = Array.from({ length: 5 }, (_, k) => { const dt = new Date(); dt.setDate(dt.getDate() + k + 1); const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`; return { data: iso, codigo: [1, 2, 2, 61, 2][k], max: 27 + (k % 3), min: 17 + (k % 2), chuvaP: [10, 20, 30, 70, 25][k] }; });
+      return { temp: t, ur: Math.round(78 - (t - 18) * 2.4), vento: Math.round(6 + 6 * Math.abs(Math.sin(h / 3))), chuva: 0, codigo: h > 11 && h < 17 ? 2 : 1, fonte: 'Estação da fazenda (simulado)', simulado: true, dias };
     };
     this.clima = this.clima || sim();
     if (cfg.climaOff) { this.clima = sim(); return; }
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${(+o.lat).toFixed(3)}&longitude=${(+o.lon).toFixed(3)}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&hourly=precipitation&past_hours=24&forecast_hours=1&timezone=America%2FSao_Paulo`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${(+o.lat).toFixed(3)}&longitude=${(+o.lon).toFixed(3)}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&hourly=precipitation&past_hours=24&forecast_hours=1&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=6&timezone=America%2FSao_Paulo`;
       const ctl = new AbortController();
       const to = setTimeout(() => ctl.abort(), 6000);
       const r = await fetch(url, { signal: ctl.signal });
@@ -733,7 +755,9 @@ export class UI {
       if (!r.ok) throw new Error('http ' + r.status);
       const j = await r.json();
       const chuva = (j.hourly?.precipitation || []).reduce((a, b) => a + (+b || 0), 0);
-      this.clima = { temp: j.current.temperature_2m, ur: j.current.relative_humidity_2m, vento: j.current.wind_speed_10m, chuva, codigo: j.current.weather_code, fonte: 'Open-Meteo', simulado: false };
+      const dd = j.daily || {};
+      const dias = (dd.time || []).slice(1, 6).map((t, k) => ({ data: t, codigo: dd.weather_code[k + 1], max: dd.temperature_2m_max[k + 1], min: dd.temperature_2m_min[k + 1], chuvaP: dd.precipitation_probability_max?.[k + 1] }));
+      this.clima = { temp: j.current.temperature_2m, ur: j.current.relative_humidity_2m, vento: j.current.wind_speed_10m, chuva, codigo: j.current.weather_code, fonte: 'Open-Meteo', simulado: false, dias };
     } catch { this.clima = sim(); }
     if (this.view === 'inicio') this.renderView();
   }
@@ -1104,4 +1128,15 @@ export class UI {
     clearTimeout(this._tt);
     this._tt = setTimeout(() => (el.hidden = true), 3200);
   }
+}
+
+// % do plano do ciclo já feito nas ruas da região (ocorrências não opcionais)
+export function progressoSafra(ui, reg) {
+  const k = `ps-${reg.id}`;
+  return ui.model.memo(k, () => {
+    let feitas = 0, tot = 0;
+    const amostra = reg.rows.filter((r, i) => i % 6 === 0);
+    for (const r of amostra) for (const o of ui.model.rowPlan(r)) { if (o.opcional || o.recorrente) continue; if (o.st === 'futura') continue; tot++; if (o.st === 'feita') feitas++; }
+    return tot ? (feitas / tot) * 100 : 0;
+  });
 }

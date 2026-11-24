@@ -2,7 +2,7 @@
 // armazenamento local do navegador. Mesma interface nos dois casos.
 // Dados de demonstração ficam só em memória e nunca são gravados.
 
-export const COLECOES = ['config', 'os', 'solo', 'contagens', 'colheita', 'lotes', 'manut', 'ativos', 'plantas', 'equip', 'safras'];
+export const COLECOES = ['config', 'os', 'solo', 'contagens', 'colheita', 'lotes', 'manut', 'ativos', 'plantas', 'equip', 'safras', 'fotos', 'checklists'];
 const LS = 'fz3d:';
 
 export class Store extends EventTarget {
@@ -15,6 +15,28 @@ export class Store extends EventTarget {
     this.db = null;
     this.erro = null;
     this.readOnly = false;
+    this.pendentes = this.lerPendentes();
+    if (typeof window !== 'undefined') window.addEventListener('online', () => this.sincronizar());
+  }
+
+  // Fila de envio: registros feitos sem sinal ficam no aparelho e sobem quando a conexão volta
+  lerPendentes() { try { return JSON.parse(localStorage.getItem(LS + 'pendentes') || '[]'); } catch { return []; } }
+  salvarPendentes() { try { localStorage.setItem(LS + 'pendentes', JSON.stringify(this.pendentes)); } catch { /* sem armazenamento */ } }
+  enfileirar(op) { this.pendentes = this.pendentes.filter((p) => !(p.c === op.c && p.id === op.id)); this.pendentes.push(op); this.salvarPendentes(); this.emit('*'); }
+  async sincronizar() {
+    if (!this.db || !this.pendentes.length) return { enviados: 0, restantes: this.pendentes.length };
+    let ok = 0;
+    for (const op of [...this.pendentes]) {
+      try {
+        if (op.del) await this.db.collection(op.c).doc(op.id).delete();
+        else await this.db.collection(op.c).doc(op.id).set(op.doc);
+        this.pendentes = this.pendentes.filter((p) => p !== op);
+        ok++;
+      } catch { break; }
+    }
+    this.salvarPendentes();
+    this.emit('*');
+    return { enviados: ok, restantes: this.pendentes.length };
   }
 
   emit(col) { this.dispatchEvent(new CustomEvent('change', { detail: { col } })); }
@@ -97,8 +119,10 @@ export class Store extends EventTarget {
     this.data[c].set(clean.id, clean);
     this.emit(c);
     if (this.db) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) { this.enfileirar({ c, id: clean.id, doc: clean }); return clean; }
       try { await this.db.collection(c).doc(clean.id).set(clean); }
       catch (e) {
+        if (e && (e.code === 'unavailable' || e.code === 'resource_exhausted')) { this.enfileirar({ c, id: clean.id, doc: clean }); return clean; }
         if (e && e.code === 'invalid_argument') this.readOnly = true;
         this.erro = `Não foi salvo (${e && e.code ? e.code : 'erro'}).`;
         this.emit(c);
