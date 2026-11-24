@@ -183,6 +183,33 @@ export class Sim {
 
   emit() { for (const f of this.listeners) f(this.machines); }
 
+  // Progresso da máquina na operação: ruas concluídas, metros restantes e previsão no ritmo real
+  progresso(mc) {
+    if (!mc || !mc.path) return null;
+    if (!mc._idx || mc._pathRef !== mc.path) {
+      mc._pathRef = mc.path;
+      mc._idx = [];
+      mc._len = {};
+      mc.path.forEach((pt, i) => {
+        if (!pt.rua || i === 0) return;
+        mc._idx.push(i);
+        const a = mc.path[i - 1];
+        mc._len[i] = Math.hypot(pt.x - a.x, pt.y - a.y);
+      });
+      mc._regs = [...new Set(mc._idx.map((i) => mc.path[i].rua.split('-')[0]))];
+    }
+    const total = mc._idx.length;
+    let feitas = 0, rest = 0;
+    for (const i of mc._idx) {
+      if (i <= mc.seg) feitas++;
+      else if (i === mc.seg + 1) rest += Math.max(0, mc._len[i] - mc.off);
+      else rest += mc._len[i];
+    }
+    const vel = Math.max(0.3, mc.velNom) / 3.6;
+    const horas = (rest / vel / 3600) * 1.12; // +12% de manobras
+    return { total, feitas, pct: total ? (feitas / total) * 100 : 0, restanteM: rest, horas, regioes: mc._regs };
+  }
+
   pushReal(p) {
     if (!p || !p.id) return false;
     const [x, y] = p.lat != null ? geo.fromLatLon(+p.lat, +p.lon) : [p.x, p.y];
@@ -224,7 +251,7 @@ export class Sim {
     mc.path = pts.map(([lat, lon]) => { const [x, y] = geo.fromLatLon(lat, lon); return { x, y, rua: null }; });
     // marca trechos dentro de ruas
     for (const p of mc.path) { const r = this.rowAt(p.x, p.y); p.rua = r ? r.id : null; if (r) p.esp = this.model.farm.regionById.get(r.reg).espLinha; }
-    mc.seg = 0; mc.off = 0; mc.trail = []; mc.fonte = 'Arquivo'; mc.estado = 'operando';
+    mc.seg = 0; mc.off = 0; mc.trail = []; mc.fonte = 'Arquivo'; mc.estado = 'operando'; mc._idx = null;
     let dur = 0;
     if (pts[0][2] && pts[pts.length - 1][2]) dur = (pts[pts.length - 1][2] - pts[0][2]) / 1000;
     let L = 0;

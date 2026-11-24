@@ -10,13 +10,14 @@ import { polysFromGeoJSON, polysFromKML, CONFIG_PADRAO } from './farm.js';
 
 export const NAV = [
   { id: 'mapa', nome: 'Mapa 3D', curto: 'Mapa', ic: 'mapa', mob: true },
+  { id: 'trabalho', nome: 'Painel de trabalho', curto: 'Trabalho', ic: 'equip', mob: true },
   { id: 'painel', nome: 'Painel', ic: 'painel', mob: true },
   { id: 'agenda', nome: 'Agenda e ordens de serviço', curto: 'Agenda', ic: 'agenda', mob: true },
-  { id: 'colheita', nome: 'Colheita e previsão', curto: 'Colheita', ic: 'colheita', mob: true },
+  { id: 'colheita', nome: 'Colheita e previsão', curto: 'Colheita', ic: 'colheita' },
   { id: 'solo', nome: 'Solo e nutrição', curto: 'Solo', ic: 'solo' },
   { id: 'fitossanidade', nome: 'Pragas e doenças', curto: 'Pragas', ic: 'fito' },
   { id: 'irrigacao', nome: 'Irrigação', ic: 'irrig' },
-  { id: 'equipamentos', nome: 'Máquinas e GPS', curto: 'Máquinas', ic: 'equip' },
+  { id: 'equipamentos', nome: 'Máquinas e GPS', curto: 'Máquinas', ic: 'gps' },
   { id: 'manutencao', nome: 'Manutenção', ic: 'manut' },
   { id: 'inventario', nome: 'Levantamento', ic: 'invent' },
   { id: 'relatorios', nome: 'Relatórios', ic: 'relat' },
@@ -41,6 +42,54 @@ function faseBar(hoje) {
 }
 
 export const VIEWS = {
+  // =========================================================== PAINEL DE TRABALHO
+  trabalho: {
+    render(ui) {
+      const m = ui.model, sim = ui.sim;
+      const ms = sim.machines;
+      const ativos = ms.filter((x) => x.estado !== 'parado');
+      const parados = ms.filter((x) => x.estado === 'parado');
+      const colhido = sum(ms.filter((x) => x.tipo === 'colhedora'), (x) => x.litros);
+      const area = sum(ativos, (x) => x.area || 0);
+      return `${head('Painel de trabalho', `Máquinas em operação agora. Toque numa máquina para acompanhar em 3D. ${sim.machines.some((x) => x.fonte === 'Tempo real') ? '' : 'Posições simuladas até conectar os rastreadores (Máquinas e GPS).'}`, `<div class="modes sm">${[['manejo', 'Operações'], ['colheita', 'Colheita']].map(([k, n]) => `<button class="mode-b ${ui.mode === k || (k === 'manejo' && ui.mode === 'irrigacao') ? 'on' : ''}" data-act="viewAct" data-a="modo" data-m="${k}">${n}</button>`).join('')}</div>`)}
+      <div class="tiles">
+        <div class="tile"><span>Em operação</span><b>${ativos.length}</b><small>${parados.length} paradas na sede</small></div>
+        <div class="tile"><span>Área percorrida na sessão</span><b data-live="tot-area">${num(area, 1)} ha</b><small>dentro das ruas</small></div>
+        <div class="tile"><span>Colhido na sessão</span><b data-live="tot-col">${num(colhido / m.params().rendimento, 1)} sc</b><small>${ui.mode === 'colheita' ? 'estimado pela previsão da rua' : 'colheita fora de época'}</small></div>
+        <div class="tile"><span>Velocidade da simulação</span><b>${sim.escala}×</b><small>${[1, 5, 30].map((v) => `<button class="mini ${sim.escala === v ? 'pri' : ''}" data-act="simVel" data-v="${v}">${v}×</button>`).join(' ')}</small></div>
+      </div>
+      ${ativos.length ? `<div class="wk-grid">${ativos.map((mc) => cardMaquina(ui, mc)).join('')}</div>` : `<p class="muted">Nenhuma máquina em operação. Ordens com status "Em execução" e máquina definida aparecem aqui.</p>`}
+      ${parados.length ? card('Paradas', `<div class="chips">${parados.map((mc) => `<button class="chip" data-act="acompanhar" data-id="${mc.id}">${esc(mc.nome)}</button>`).join('')}</div>`) : ''}`;
+    },
+    live(ui) {
+      const m = ui.model;
+      for (const mc of ui.sim.machines) {
+        const set = (k, v) => { const el = document.querySelector(`[data-live="${mc.id}-${k}"]`); if (el) el.textContent = v; };
+        if (!document.querySelector(`[data-live="${mc.id}-vel"]`)) continue;
+        const pr = ui.sim.progresso(mc);
+        set('vel', `${num(mc.vel, 1)} km/h`);
+        set('rua', mc.rua || (mc.estado === 'descarregando' ? 'indo descarregar' : mc.estado === 'retornando' ? 'voltando à colhedora' : 'manobra'));
+        set('st', mc.estado);
+        if (pr) {
+          set('prog', `${pr.feitas} de ${pr.total} ruas · ${num(pr.pct, 0)}%`);
+          set('eta', pr.horas > 0.05 ? `~${fmtHoras(pr.horas)} no ritmo real` : 'concluindo');
+          const bar = document.querySelector(`[data-live="${mc.id}-bar"]`); if (bar) bar.style.width = `${pr.pct}%`;
+        }
+        if (mc.tipo === 'bazuca') set('extra', `${num(mc.carga, 0)} L na carreta · ${mc.cargas || 0} descargas`);
+        if (mc.tipo === 'colhedora') set('extra', `${num(mc.litros, 0)} L colhidos (${num(mc.litros / m.params().rendimento, 1)} sc)`);
+        const dot = document.querySelector(`[data-live="${mc.id}-dot"]`);
+        if (dot) { dot.setAttribute('cx', mc.x.toFixed(1)); dot.setAttribute('cy', (-mc.y).toFixed(1)); }
+        const tr = document.querySelector(`[data-live="${mc.id}-trail"]`);
+        if (tr) tr.setAttribute('points', mc.trail.slice(-600).map((p) => `${p[0].toFixed(1)},${(-p[1]).toFixed(1)}`).join(' '));
+      }
+      const tA = document.querySelector('[data-live="tot-area"]');
+      if (tA) tA.textContent = `${num(sum(ui.sim.machines, (x) => x.area || 0), 1)} ha`;
+      const tC = document.querySelector('[data-live="tot-col"]');
+      if (tC) tC.textContent = `${num(sum(ui.sim.machines.filter((x) => x.tipo === 'colhedora'), (x) => x.litros) / m.params().rendimento, 1)} sc`;
+    },
+    act(ui, d) { if (d.a === 'modo') { ui.setMode(d.m); ui.renderView(); } },
+  },
+
   // =========================================================== PAINEL
   painel: {
     render(ui) {
@@ -68,6 +117,7 @@ export const VIEWS = {
         ${kpi('Manutenção aberta', mts.length, `${mts.filter((x) => x.prioridade === 'Alta').length} de prioridade alta`, mts.some((x) => x.prioridade === 'Alta') ? 'bad' : '', 'data-act="go" data-v="manutencao"')}
         ${kpi(`Previsão ${m.safra}`, num(prevTot, 0) + ' sc', prevTot ? brl(prevTot * m.params().precoSaca) + ' estimados' : 'sem contagem', '', 'data-act="go" data-v="colheita"')}
       </div>
+      ${(() => { const at = ui.sim.machines.filter((x) => x.estado !== 'parado'); return at.length ? card('Máquinas trabalhando agora', `<div class="chips">${at.map((x) => `<button class="mini" data-act="acompanhar" data-id="${x.id}"><i class="dotc" style="background:${TIPOS_EQUIP[x.tipo]?.cor}"></i>${esc(x.nome)} · ${esc(x.rua || 'manobra')}</button>`).join('')}</div>`, `<button class="mini" data-act="go" data-v="trabalho">Painel de trabalho</button>`) : ''; })()}
       <div class="grid2">
         ${card('Trabalho de hoje', hoje.length ? `<ul class="list">${hoje.map((o) => `<li><button data-act="abrirOS" data-id="${o.id}"><b>${esc(TAREFA[o.tarefa]?.nome)}</b><span>${esc(Object.entries(o.ruas || {}).map(([k, v]) => `${k} ${v}`).join(' · ') || o.ativo || '')}</span>${chip(STATUS_OS[o.status].nome, STATUS_OS[o.status].cls)}</button></li>`).join('')}</ul>` : '<p class="muted">Nada lançado para hoje.</p>', `<button class="mini" data-act="viewAct" data-a="mapaHoje">Ver no mapa</button>`)}
         ${(() => { const al = [
@@ -501,4 +551,45 @@ function osCard(ui, o) {
 function clsCor(i, inverso) {
   const k = inverso ? 4 - i : i;
   return k <= 0 ? 'st-bad' : k === 1 ? 'st-warn' : k === 2 ? 'st-info' : 'st-ok';
+}
+
+function fmtHoras(h) { const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return hh ? `${hh} h ${String(mm).padStart(2, '0')}` : `${mm} min`; }
+
+function cardMaquina(ui, mc) {
+  const farm = ui.farm, m = ui.model;
+  const pr = ui.sim.progresso(mc);
+  const alvo = mc.segue ? ui.sim.machines.find((x) => x.id === mc.segue) : null;
+  const regs = pr ? pr.regioes : alvo ? (ui.sim.progresso(alvo)?.regioes || []) : [];
+  const os = mc.os ? m.osList().find((o) => o.id === mc.os) : null;
+  const cor = TIPOS_EQUIP[mc.tipo]?.cor || '#888';
+  // mini-mapa: região(ões) + ruas da operação + trilha + posição
+  const polys = regs.map((r) => farm.regionById.get(r)).filter(Boolean);
+  const pts = polys.flatMap((r) => r.poly);
+  if (!pts.length) pts.push([mc.x - 60, mc.y - 60], [mc.x + 60, mc.y + 60]);
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const x0 = Math.min(...xs) - 20, x1 = Math.max(...xs) + 20, y0 = Math.min(...ys) - 20, y1 = Math.max(...ys) + 20;
+  const sw = Math.max(x1 - x0, y1 - y0) / 140;
+  const rowsSvg = mc.path ? mc.path.filter((p, i) => p.rua && i > 0).map((p) => { const r = farm.rowById.get(p.rua); return r ? `<line x1="${r.x1.toFixed(0)}" y1="${(-r.y1).toFixed(0)}" x2="${r.x2.toFixed(0)}" y2="${(-r.y2).toFixed(0)}"/>` : ''; }).join('') : '';
+  const svg = `<svg viewBox="${x0.toFixed(0)} ${(-y1).toFixed(0)} ${(x1 - x0).toFixed(0)} ${(y1 - y0).toFixed(0)}" preserveAspectRatio="xMidYMid meet" style="--sw:${sw}">
+    ${polys.map((r) => `<polygon class="wm-reg" points="${r.poly.map((p) => `${p[0].toFixed(0)},${(-p[1]).toFixed(0)}`).join(' ')}"/>`).join('')}
+    <g class="wm-rows">${rowsSvg}</g>
+    <polyline class="wm-trail" style="stroke:${cor}" data-live="${mc.id}-trail" points="${mc.trail.slice(-600).map((p) => `${p[0].toFixed(1)},${(-p[1]).toFixed(1)}`).join(' ')}"/>
+    <circle class="wm-dot" style="fill:${cor}" r="${(sw * 5).toFixed(1)}" cx="${mc.x.toFixed(1)}" cy="${(-mc.y).toFixed(1)}" data-live="${mc.id}-dot"/></svg>`;
+  const tarefa = mc.tarefa ? TAREFA[mc.tarefa]?.nome || mc.tarefa : alvo ? `Transbordo de ${alvo.nome}` : '—';
+  return `<article class="wk-card" style="--c:${cor}">
+    <button class="wk-map" data-act="acompanhar" data-id="${mc.id}" aria-label="Acompanhar ${esc(mc.nome)} em 3D">${svg}<span class="wk-go">${ic('alvo')} Acompanhar em 3D</span></button>
+    <div class="wk-info">
+      <div class="wk-top"><b>${esc(mc.nome)}</b><span class="chip st-ok" data-live="${mc.id}-st">${esc(mc.estado)}</span></div>
+      <div class="wk-op">${esc(tarefa)}${regs.length ? ` · ${regs.map((r) => esc(farm.regionById.get(r)?.nome || r)).join(', ')}` : ''}</div>
+      <dl class="kv sm">
+        <dt>Rua agora</dt><dd class="mono" data-live="${mc.id}-rua">${esc(mc.rua || 'manobra')}</dd>
+        <dt>Velocidade</dt><dd data-live="${mc.id}-vel">${num(mc.vel, 1)} km/h</dd>
+        <dt>Operador</dt><dd>${esc(os?.operador || '—')}</dd>
+        ${pr ? `<dt>Término previsto</dt><dd data-live="${mc.id}-eta">${pr.horas > 0.05 ? `~${fmtHoras(pr.horas)} no ritmo real` : 'concluindo'}</dd>` : ''}
+        <dt>GPS</dt><dd>${esc(mc.fonte)}${mc.rastreador ? ` · ${esc(mc.rastreador)}` : ''}</dd>
+      </dl>
+      ${pr ? `<div class="prog"><span data-live="${mc.id}-bar" style="width:${pr.pct}%"></span></div><small class="muted" data-live="${mc.id}-prog">${pr.feitas} de ${pr.total} ruas · ${num(pr.pct, 0)}%</small>` : ''}
+      ${mc.tipo === 'bazuca' || mc.tipo === 'colhedora' ? `<small class="muted" data-live="${mc.id}-extra"></small>` : ''}
+      <div class="os-act"><button class="btn pri sm" data-act="acompanhar" data-id="${mc.id}">${ic('alvo')} Acompanhar em 3D</button>${os ? `<button class="btn sm" data-act="abrirOS" data-id="${os.id}">Ordem de serviço</button>` : ''}</div>
+    </div></article>`;
 }

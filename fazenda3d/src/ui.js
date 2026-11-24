@@ -34,6 +34,7 @@ export class UI {
     this.drawerTab = 'resumo';
     this.safraColheita = null;
     this.seguir = null;
+    this.camModo = 'atras';
     this.forms = new Forms(this);
   }
 
@@ -94,6 +95,7 @@ export class UI {
     <div id="hud" class="hud">
       <div class="hud-top">
         <div class="hud-card" id="hudSel"></div>
+        <div class="hud-card hud-follow" id="hudFollow" hidden></div>
         <div class="hud-card hud-right" id="hudSim"></div>
       </div>
       <div class="hud-bottom">
@@ -172,10 +174,13 @@ export class UI {
     statusAtivo(d) { this.forms.statusAtivo(d.id); },
     relatorio(d) { this.forms.relatorio(d.id); },
     fecharModal() { this.closeModal(); },
-    seguirEquip(d) { this.seguir = this.seguir === d.id ? null : d.id; this.renderDrawer(); },
+    seguirEquip(d) { if (this.seguir === d.id) this.pararSeguir(); else this.acompanhar(d.id); },
+    acompanhar(d) { this.acompanhar(d.id); },
+    camModo(d) { this.camModo = d.m; this.renderHud(); },
+    pararSeguir() { this.pararSeguir(); },
     importarTrilha(d) { this.forms.importarTrilha(d.id); },
     simPlay() { this.sim.rodando = !this.sim.rodando; this.renderHud(); },
-    simVel(d) { this.sim.escala = +d.v; this.renderHud(); },
+    simVel(d) { this.sim.escala = +d.v; this.renderHud(); if (this.view !== 'mapa') this.renderView(); },
     plantaStatus(d) { this.setPlantaStatus(d.row, +d.j, d.st); },
     planoLancar(d) { this.forms.os({ ruas: this.selRuasObj(), tarefa: d.tarefa }); },
     pularPlanta(d) { const r = this.farm.rowById.get(d.row); const j = Math.max(0, Math.min(r.nPl - 1, +d.j)); this.focarPlanta(d.row, j, false); },
@@ -323,6 +328,17 @@ export class UI {
     const ativos = s.machines.filter((x) => x.estado !== 'parado').length;
     this.$('#hudSim').innerHTML = `<div class="sim-h">${ic('gps')}<b>GPS</b><span class="muted">${ativos} em operação · ${esc(s.machines.some((m) => m.fonte === 'Tempo real') ? 'tempo real' : 'simulação')}</span></div>
       <div class="sim-c"><button class="tb" data-act="simPlay" aria-label="${s.rodando ? 'Pausar' : 'Continuar'}">${ic(s.rodando ? 'pause' : 'play')}</button>${[1, 10, 30, 120].map((v) => `<button class="tb ${s.escala === v ? 'on' : ''}" data-act="simVel" data-v="${v}">${v}×</button>`).join('')}</div>`;
+    const trabalhando = s.machines.filter((x) => x.estado !== 'parado');
+    this.$('#hudSim').innerHTML += trabalhando.length ? `<div class="sim-l">${trabalhando.map((x) => `<button class="sim-m ${this.seguir === x.id ? 'on' : ''}" data-act="acompanhar" data-id="${x.id}" title="Acompanhar em 3D"><i style="background:${TIPOS_EQUIP[x.tipo]?.cor}"></i>${esc(x.nome)}</button>`).join('')}</div>` : '';
+    const hf = this.$('#hudFollow');
+    const mf = this.seguir ? s.machines.find((x) => x.id === this.seguir) : null;
+    if (mf) {
+      hf.hidden = false;
+      hf.innerHTML = `<div class="fl-h"><span class="fl-dot" style="background:${TIPOS_EQUIP[mf.tipo]?.cor}"></span><b>${esc(mf.nome)}</b><button class="tb" data-act="pararSeguir">${ic('fechar')}<span>Parar</span></button></div>
+        <div class="fl-l" id="flLive"></div>
+        <div class="fl-c">${[['atras', 'Atrás'], ['lateral', 'Lateral'], ['cima', 'De cima'], ['livre', 'Livre']].map(([k, n]) => `<button class="tb ${this.camModo === k ? 'on' : ''}" data-act="camModo" data-m="${k}">${n}</button>`).join('')}</div>`;
+      this.liveFollow(s.machines);
+    } else { hf.hidden = true; hf.innerHTML = ''; }
     const sel = this.sel;
     const regs = this.farm.regions.map((r) => `<button class="mini" data-act="selRegiao" data-r="${r.id}" style="--c:${r.cor}">${esc(r.id)}</button>`).join('');
     this.$('#hudSel').innerHTML = sel.length
@@ -330,6 +346,14 @@ export class UI {
       : `<div class="sel-h"><span class="muted">Toque numa rua ou escolha a região</span></div><div class="mini-row">${regs}</div>`;
     const selEl = this.$('#legend select');
     if (selEl) selEl.onchange = () => { this.cor[this.mode] = selEl.value; this.colorir(); this.renderHud(); };
+  }
+
+  liveFollow(ms) {
+    const el = document.getElementById('flLive');
+    const mc = ms.find((x) => x.id === this.seguir);
+    if (!el || !mc) return;
+    const pr = this.sim.progresso(mc);
+    el.innerHTML = `${mc.tarefa ? esc(TAREFA[mc.tarefa]?.nome || mc.tarefa) + ' · ' : ''}${mc.rua ? `rua <b class="mono">${esc(mc.rua)}</b>` : 'manobra / deslocamento'} · <b>${num(mc.vel, 1)}</b> km/h${pr ? ` · ${pr.feitas}/${pr.total} ruas` : ''}`;
   }
 
   updateMarkers() {
@@ -404,9 +428,9 @@ export class UI {
     if (!r) return;
     const reg = this.farm.regionById.get(r.reg);
     this.go('mapa');
-    const ids = this.sel.includes(rowId) && this.sel.length <= 40 ? this.sel : [rowId];
+    const ids = this.sel.includes(rowId) && this.sel.length <= 6 ? this.sel : [rowId];
     this.selecionar(ids, { row: rowId, j });
-    if (voar) { const [x, y] = plantPos(r, reg, j); this.scene.flyToXY(x, y, 18, true, 0.6); }
+    if (voar) { const [x, y] = plantPos(r, reg, j); this.scene.flyToXY(x, y, 15, true, 0.15); }
     this.openDrawer({ tipo: 'planta', row: rowId, j });
   }
   focarAtivo(id) {
@@ -425,6 +449,25 @@ export class UI {
     this.go('mapa');
     if (mc) this.scene.flyToXY(mc.x, mc.y, 80, true, 0.6);
     this.openDrawer({ tipo: 'equip', id });
+  }
+  acompanhar(id) {
+    const mc = this.sim.machines.find((x) => x.id === id);
+    if (!mc) return this.toast('Máquina não encontrada.');
+    this.go('mapa');
+    this.seguir = id;
+    if (this.sim.escala > 5) this.sim.escala = 5;
+    if (!this.scene.layers.equipamentos) this.scene.setLayer('equipamentos', true);
+    this.scene.stopFollow();
+    this.scene.flyToXY(mc.x, mc.y, 45, true, 0.6);
+    if (window.innerWidth > 760) this.openDrawer({ tipo: 'equip', id }); else this.closeDrawer();
+    this.renderHud();
+    this.toast(`Acompanhando ${mc.nome}. Velocidade da simulação: ${this.sim.escala}×.`);
+  }
+  pararSeguir() {
+    this.seguir = null;
+    this.scene.stopFollow();
+    this.renderHud();
+    if (this.drawer?.tipo === 'equip') this.renderDrawer();
   }
   focarManut(id) {
     const mt = this.store.get('manut', id);
@@ -708,7 +751,7 @@ export class UI {
 
   onSim(ms) {
     this.scene.updateEquip(ms);
-    if (this.seguir) { const mc = ms.find((x) => x.id === this.seguir); if (mc && !this.scene.anim) { this.scene.controls.target.lerp(this.scene.W(mc.x, mc.y, 0), 0.15); this.scene.dirty = true; } }
+    if (this.seguir && this.view === 'mapa') { const mc = ms.find((x) => x.id === this.seguir); if (mc && !this.scene.anim) this.scene.follow(mc, this.camModo); }
     const now = performance.now();
     if (now - (this._lastLive || 0) > 500) {
       this._lastLive = now;
@@ -719,6 +762,8 @@ export class UI {
         if (el && e) el.innerHTML = this.eqLive(e, mc, mc?.rua ? this.farm.rowById.get(mc.rua) : null);
       }
       if (this.view === 'equipamentos') VIEWS.equipamentos.live?.(this);
+      if (this.view === 'trabalho') VIEWS.trabalho.live?.(this);
+      if (this.seguir) this.liveFollow(ms);
       if (this.mode === 'colheita' && this.cor.colheita === 'colhidas' && now - (this._lastCol || 0) > 3000) { this._lastCol = now; this.colorir(); }
     }
   }
