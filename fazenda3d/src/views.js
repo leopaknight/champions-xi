@@ -4,7 +4,7 @@ import { TAREFA, TAREFAS, FASES, FASE, PRAGAS, STATUS_OS, STATUS_ATIVO, TIPOS_EQ
 import { estagio, faseAtual, interpretar, ATRIBUTOS, DERIV, etoHargreaves, taxaMmH, kr, PARAM_PADRAO, estimar } from './agro.js';
 import { telemetriaBomba, telemetriaRele, nivelReservatorio, setorIrrigando } from './sim.js';
 import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, addDays, parseISO, MESES, MESES_LONGO, DIAS, sum, groupBy, anoSafra, daysBetween, compressRanges, toCSV, mean } from './util.js';
-import { ic, chip, STCLS, STNOME, lineChart, barH, corCat, baixar, lerArquivo, donut, barrasV, tileIcon, rowsThumb, logoSVG, ramoSVG, cena, anel } from './dom.js';
+import { ic, chip, STCLS, STNOME, lineChart, barH, corCat, baixar, lerArquivo, donut, barrasV, tileIcon, rowsThumb, logoSVG, ramoSVG, cena, anel, wordmark } from './dom.js';
 import { progressoSafra } from './ui.js';
 import { RELATORIOS } from './reports.js';
 import { polysFromGeoJSON, polysFromKML, CONFIG_PADRAO } from './farm.js';
@@ -968,7 +968,7 @@ function heroMobile(ui) {
   const tiles = [['mapa', 'Mapa 3D', 'mapa'], ['agenda', 'Operações', 'operacoes'], ['regioes', 'Regiões', 'regioes'], ['equipamentos', 'Máquinas', 'maquinas'], ['solo', 'Solo e Nutrição', 'solo'], ['fitossanidade', 'Pragas e Doenças', 'pragas'], ['manejo', 'Manejo do Café', 'colheita'], ['producao', 'Produção', 'producao'], ['campo', 'Modo de Campo', 'relatorios']];
   return `<section class="hero h2 mob-only">
     <div class="hero-art">${ramoSVG()}</div>
-    <div class="h2-top"><div class="hero-logo">${logoSVG()}<div class="wm"><b>Lavoura 3D</b><i>Café</i></div></div><button class="h2-bell" data-act="go" data-v="alertas" aria-label="Alertas">${ic('sino')}${nAl ? `<i class="nb-badge">${nAl}</i>` : ''}</button></div>
+    <div class="h2-top"><div class="hero-logo">${logoSVG()}${wordmark()}</div><button class="h2-bell" data-act="go" data-v="alertas" aria-label="Alertas">${ic('sino')}${nAl ? `<i class="nb-badge">${nAl}</i>` : ''}</button></div>
     <h2>Olá${nome ? `, ${esc(nome)}` : '!'}</h2>
     <button class="h2-farm" data-act="go" data-v="ajustes">${esc(cfg.nome)} ${ic('chev')}</button>
   </section>

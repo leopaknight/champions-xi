@@ -7,7 +7,7 @@ import { TAREFA, FASE, STATUS_OS, STATUS_ATIVO, STATUS_PLANTA, TIPOS_EQUIP, PRAG
 import { estagio, faseAtual, taxaMmH } from './agro.js';
 import { telemetriaBomba, telemetriaRele, nivelReservatorio, setorIrrigando } from './sim.js';
 import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, compressRanges, expandRanges, debounce, uid, hash, sum, addDays } from './util.js';
-import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG, rowsThumb } from './dom.js';
+import { ic, chip, STCLS, STNOME, ramp, RAMPA_RISCO, RAMPA_PROD, RAMPA_AGUA, corCat, lineChart, logoSVG, ramoSVG, rowsThumb, wordmark } from './dom.js';
 import { VIEWS, NAV, situacaoRegiao } from './views.js';
 import { Forms } from './forms.js';
 
@@ -112,7 +112,7 @@ export class UI {
 
   shell() {
     const sb = (n) => `<button class="side-b" data-act="go" data-v="${n.id}" title="${esc(n.nome)}">${ic(n.ic)}<span>${esc(n.lado || n.nome)}</span></button>`;
-    const wm = `<div class="wm"><b>Lavoura 3D</b><i>Café</i></div>`;
+    const wm = wordmark();
     return `
 <div id="app">
   <aside class="side">
@@ -606,7 +606,7 @@ export class UI {
   abrirMais() {
     const it = [['campo', 'Modo de Campo', 'gps'], ['manejo', 'Manejo do Café', 'agenda'], ['alertas', 'Previsão e Alertas', 'nuvem'], ['regioes', 'Regiões', 'campo'], ['equipamentos', 'Máquinas', 'trator'], ['solo', 'Solo e Fertilidade', 'solo'], ['fitossanidade', 'Pragas e Doenças', 'fito'], ['colheita', 'Colheita', 'grao'], ['irrigacao', 'Irrigação', 'irrig'], ['manutencao', 'Manutenção', 'manut'], ['trabalho', 'Máquinas trabalhando', 'alvo'], ['inventario', 'Levantamento', 'invent'], ['relatorios', 'Relatórios', 'relat'], ['perfil', 'Perfil', 'usuario'], ['ajustes', 'Ajustes', 'config']];
     const nAl = this.alertas().length;
-    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">Lavoura 3D Café</div><h2>Mais</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
+    this.modal(`<div class="mform"><div class="m-h"><div><div class="dr-eyebrow">AgroCafé 3D</div><h2>Mais</h2></div><button class="dr-x" data-act="fecharModal" aria-label="Fechar">${ic('fechar')}</button></div>
       <div class="m-b"><div class="mais-g">${it.map(([v, n, i]) => `<button data-act="go" data-v="${v}">${ic(i)}<span>${n}</span>${v === 'alertas' && nAl ? `<i class="nb-badge">${nAl}</i>` : ''}</button>`).join('')}</div></div></div>`, 'fabsheet');
   }
   abrirMenuMapa() {

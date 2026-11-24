@@ -1,11 +1,13 @@
-# Lavoura 3D Café
+# AgroCafé 3D
+
+Gestão inteligente da sua lavoura.
 
 Sistema de gestão de lavoura de café em 3D: ruas e plantas pé a pé, plano do ciclo
 completo, ordens de serviço, solo, pragas, irrigação por gotejamento (bombas, válvulas,
 relés, cruzetas, gotejadores), colheita com previsão por contagem, máquinas com GPS e
 relatórios.
 
-Abra `dist/fazenda-cafe-3d.html` em qualquer navegador (funciona offline: o Three.js vai
+Abra `dist/fazenda-cafe-3d.html` (ou suba `dist/cloudflare` no Cloudflare Pages) em qualquer navegador (funciona offline: o Three.js vai
 embutido no arquivo). A mesma página está publicada como Artifact no claude.ai com banco
 compartilhado.
 
