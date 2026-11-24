@@ -151,12 +151,15 @@ export function lerArquivo(accept) {
   });
 }
 
-import LOGO_ICONE from '../assets/logo-icone.webp';
-import LOGO_EMBLEMA from '../assets/logo-emblema.webp';
-export { LOGO_EMBLEMA };
-// Marca AgroCafé 3D: símbolo recortado da logo enviada
-export function logoSVG(cls = '') { return `<img class="logo ${cls}" src="${LOGO_ICONE}" alt="" width="56" height="56">`; }
-export function wordmark() { return `<div class="wm"><b>Agro<span>Café</span><em>3D</em></b><small>Gestão inteligente da sua lavoura</small></div>`; }
+// Marca: dois grãos de café e folhas
+export function logoSVG(cls = '') {
+  return `<svg class="logo ${cls}" viewBox="0 0 64 64" aria-hidden="true">
+  <path d="M34 22c4-12 16-16 24-14-1 9-8 18-22 17z" fill="#4f9a3c"/><path d="M34 22c6-6 12-10 20-12" stroke="#2f6b2a" stroke-width="1.6" fill="none"/>
+  <path d="M30 20C25 9 16 6 9 8c2 8 9 14 21 13z" fill="#3a7f33"/><path d="M30 20C24 15 18 11 11 9" stroke="#25591f" stroke-width="1.6" fill="none"/>
+  <ellipse cx="22" cy="42" rx="12" ry="15" transform="rotate(-28 22 42)" fill="#7a3e1e"/><path d="M14 31c8 4 10 14 16 22" stroke="#4a230f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <ellipse cx="42" cy="44" rx="11" ry="14" transform="rotate(22 42 44)" fill="#9a5226"/><path d="M47 32c-7 5-9 14-12 22" stroke="#5c2c12" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>`;
+}
+
 // Ramo de café com cerejas (decorativo, desenhado em SVG)
 export function ramoSVG() {
   const folhas = [[40, 120, -30, 1.2], [92, 86, 20, 1.3], [150, 128, 60, 1.1], [20, 200, -60, 1], [128, 210, 30, 1.25], [70, 250, -10, 1.05], [176, 60, 40, 0.9]];

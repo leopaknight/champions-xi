@@ -1,6 +1,6 @@
-// Cache para uso offline no campo. Versão: mwu54tqz
-const CACHE = 'agrocafe3d-mwu54tqz';
-const ARQ = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+// Cache para uso offline no campo. Versão: mwu4rpg9
+const CACHE = 'lavoura3d-mwu4rpg9';
+const ARQ = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQ)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
