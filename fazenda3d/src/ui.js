@@ -1,5 +1,6 @@
 // Interface: estrutura da tela, mapa 3D, gaveta de detalhes, busca e modos.
-import { Scene3D } from './scene.js';
+import { Scene3D, QUALIDADES } from './scene.js';
+import { Color as THREE_Color } from 'three';
 import { buildFarm, CONFIG_PADRAO, plantPos, gotejadorEm, rowPointAt } from './farm.js';
 import { makeDemo } from './demo.js';
 import { TAREFA, FASE, STATUS_OS, STATUS_ATIVO, STATUS_PLANTA, TIPOS_EQUIP, PRAGAS } from './catalog.js';
@@ -16,9 +17,9 @@ const MODOS = [
   { id: 'colheita', nome: 'Colheita' },
 ];
 const CORES = {
-  manejo: [['plano', 'Plano do ciclo'], ['hoje', 'Trabalho de hoje'], ['ultima', 'Dias sem operação'], ['falhas', 'Falhas de estande'], ['fito', 'Pressão de pragas'], ['variedade', 'Cultivar'], ['idade', 'Idade'], ['regiao', 'Região']],
+  manejo: [['natural', 'Aparência natural'], ['plano', 'Plano do ciclo'], ['hoje', 'Trabalho de hoje'], ['ultima', 'Dias sem operação'], ['falhas', 'Falhas de estande'], ['fito', 'Pressão de pragas'], ['variedade', 'Cultivar'], ['idade', 'Idade'], ['regiao', 'Região']],
   irrigacao: [['setor', 'Setor'], ['irrigando', 'Irrigando agora'], ['cud', 'Uniformidade (CUD)']],
-  colheita: [['previsao', 'Previsão (sc/ha)'], ['producao', 'Colhido (sc/ha)'], ['colhidas', 'Ruas colhidas'], ['maturacao', 'Maturação (% verde)']],
+  colheita: [['natural', 'Aparência natural'], ['previsao', 'Previsão (sc/ha)'], ['producao', 'Colhido (sc/ha)'], ['colhidas', 'Ruas colhidas'], ['maturacao', 'Maturação (% verde)']],
 };
 
 export class UI {
@@ -26,7 +27,7 @@ export class UI {
     this.store = store; this.model = model; this.sim = sim;
     this.mode = 'manejo';
     this.view = 'mapa';
-    this.cor = { manejo: 'plano', irrigacao: 'setor', colheita: 'previsao' };
+    this.cor = { manejo: 'natural', irrigacao: 'setor', colheita: 'previsao' };
     this.sel = [];
     this.plantaSel = null;
     this.multi = false;
@@ -43,8 +44,14 @@ export class UI {
     document.getElementById('root').innerHTML = this.shell();
     this.$ = (s) => document.querySelector(s);
     this.scene = new Scene3D(this.$('#map3d'), {
+      qualidade: this.lerQualidade(),
       onPick: (hit, e) => this.onPick(hit, e),
       onHover: (hit, e) => this.onHover(hit, e),
+      onLento: (q) => {
+        const prox = q === 'ultra' ? 'alta' : 'leve';
+        this.setQualidade(prox);
+        this.toast(`O 3D estava pesado neste aparelho. Qualidade ajustada para ${QUALIDADES[prox].nome}. Dá para voltar em Ajustes.`);
+      },
     });
     this.rebuildFarm();
     this.bind();
@@ -57,6 +64,22 @@ export class UI {
     const h = (location.hash || '').slice(1);
     if (h && NAV.some((n) => n.id === h)) this.go(h); else this.go('mapa');
     window.addEventListener('hashchange', () => { const v = location.hash.slice(1) || 'mapa'; if (v !== this.view && NAV.some((n) => n.id === v)) this.go(v, false); });
+  }
+
+  lerQualidade() {
+    try { const q = localStorage.getItem('fz3d:qualidade'); if (q && QUALIDADES[q]) return q; } catch { /* sem armazenamento */ }
+    const fraco = window.matchMedia?.('(pointer: coarse)').matches && window.innerWidth < 900;
+    return fraco ? 'alta' : 'ultra';
+  }
+  setQualidade(q) {
+    if (!QUALIDADES[q]) return;
+    try { localStorage.setItem('fz3d:qualidade', q); } catch { /* sem armazenamento */ }
+    this.scene.setQualidade(q);
+    this.scene.build(this.farm, this.model);
+    this.scene.setMode(this.mode);
+    this.scene.setSelection(this.sel, { plantaSel: this.plantaSel });
+    this.refreshAll();
+    this.sim.emit();
   }
 
   farmConfig() {
@@ -184,6 +207,7 @@ export class UI {
     plantaStatus(d) { this.setPlantaStatus(d.row, +d.j, d.st); },
     planoLancar(d) { this.forms.os({ ruas: this.selRuasObj(), tarefa: d.tarefa }); },
     pularPlanta(d) { const r = this.farm.rowById.get(d.row); const j = Math.max(0, Math.min(r.nPl - 1, +d.j)); this.focarPlanta(d.row, j, false); },
+    qualidade(d) { const ord = ['ultra', 'alta', 'leve']; const q = d.q || ord[(ord.indexOf(this.scene.qNome) + 1) % 3]; this.setQualidade(q); this.toast(`Qualidade do 3D: ${QUALIDADES[q].nome}.`); if (this.view === 'ajustes') this.renderView(); },
     copiar(d) { navigator.clipboard?.writeText(d.txt).then(() => this.toast('Copiado.'), () => this.toast(d.txt)); },
     viewAct(d, el, e) { const v = VIEWS[this.view]; v?.act?.(this, d, el, e); },
   };
@@ -266,6 +290,11 @@ export class UI {
     let fn;
     const safraCol = this.safraColheita || m.safra;
     switch (cm) {
+      case 'natural': {
+        const c1 = new THREE_Color('#3b6f34'), c2 = new THREE_Color('#5f9447'), cj = new THREE_Color('#6f9a45');
+        fn = (r) => { const reg = farm.regionById.get(r.reg); const h = (hash(r.id) % 1000) / 1000; const base = reg.idade < 2 ? cj : c1; return base.clone().lerp(c2, 0.15 + h * 0.35).getHexString().replace(/^/, '#'); };
+        break;
+      }
       case 'plano': fn = (r) => { const s = m.rowPlanSummary(r); return s.atrasadas ? '#ff4f3a' : s.agora ? '#f2b630' : '#4fa65e'; }; break;
       case 'hoje': {
         const mp = new Map();
@@ -296,6 +325,7 @@ export class UI {
     const it = (c, t) => `<span class="lg"><i style="background:${c}"></i>${esc(t)}</span>`;
     const grad = (stops, a, b) => `<span class="lg-grad"><i style="background:linear-gradient(90deg,${stops.map(([t, c]) => `${c} ${t * 100}%`).join(',')})"></i><small>${esc(a)}</small><small>${esc(b)}</small></span>`;
     switch (cm) {
+      case 'natural': return '<small>Cor real da lavoura. Escolha um indicador acima para colorir as ruas por dado.</small>';
       case 'plano': return it('#ff4f3a', 'Com atraso') + it('#f2b630', 'Operação na janela') + it('#4fa65e', 'Em dia');
       case 'hoje': return this.model.osDoDia().map((o) => it(corCat(hash(o.tarefa) % 12), TAREFA[o.tarefa]?.nome || o.tarefa)).join('') || '<small>Nenhuma operação lançada para o dia.</small>';
       case 'ultima': return grad(RAMPA_RISCO, '0 dia', '45+ dias');
@@ -322,6 +352,7 @@ export class UI {
     this.$('#tools').innerHTML = `
       <button class="tb ${this.multi ? 'on' : ''}" data-act="multi" title="Seleção múltipla">${ic('check')}<span>Várias ruas</span></button>
       <button class="tb" data-act="verTudo" title="Ver a fazenda inteira">${ic('alvo')}<span>Ver tudo</span></button>
+      <button class="tb" data-act="qualidade" title="Qualidade do 3D (toque para trocar)">${ic('camadas')}<span>${QUALIDADES[this.scene.qNome].nome}</span></button>
       <span class="tb-sep"></span>
       ${[['rotulos', 'Rótulos'], ['ativos', 'Ativos'], ['equipamentos', 'Máquinas'], ['manutencao', 'Manutenção'], ['irrigacao', 'Rede'], ['cruzetas', 'Cruzetas']].map(([k, n]) => `<button class="tb tb-l ${L[k] ? 'on' : ''}" data-act="layer" data-l="${k}">${esc(n)}</button>`).join('')}`;
     const s = this.sim;

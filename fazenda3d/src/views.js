@@ -7,6 +7,7 @@ import { esc, num, brl, pct, fmtDate, fmtDateShort, geo, isoDate, addDays, parse
 import { ic, chip, STCLS, STNOME, lineChart, barH, corCat, baixar, lerArquivo } from './dom.js';
 import { RELATORIOS } from './reports.js';
 import { polysFromGeoJSON, polysFromKML, CONFIG_PADRAO } from './farm.js';
+import { QUALIDADES } from './scene.js';
 
 export const NAV = [
   { id: 'mapa', nome: 'Mapa 3D', curto: 'Mapa', ic: 'mapa', mob: true },
@@ -406,6 +407,8 @@ export const VIEWS = {
       const conf = S('ajConf', '');
       const sm = ui.store.mode;
       return `${head('Ajustes', 'Fazenda, regiões, limites reais, parâmetros agronômicos, preços e dados.')}
+      ${card('Qualidade do 3D', `<p class="small">Ultra: sombras do sol em alta resolução, oclusão de ambiente, pés de café folha a folha com balanço ao vento e reflexos. Alta: sombras e folhas sem oclusão. Leve: sem sombras, para celulares simples. Se o aparelho não acompanhar, o sistema reduz sozinho.</p>
+        <div class="seg">${Object.entries(QUALIDADES).map(([k, v]) => `<button class="${ui.scene.qNome === k ? 'on' : ''}" data-act="qualidade" data-q="${k}">${v.nome}</button>`).join('')}</div><p class="muted small">A escolha fica salva neste aparelho.</p>`)}
       ${card('Fazenda', `<form class="form-grid" data-form="faz">
         <label class="fld"><span>Nome</span><input name="nome" value="${esc(cfg.nome)}" required></label>
         <label class="fld"><span>Município</span><input name="municipio" value="${esc(cfg.municipio || '')}"></label>
