@@ -1,0 +1,19 @@
+{
+ "name": "Lavoura 3D Café",
+ "short_name": "Lavoura 3D",
+ "start_url": "./",
+ "scope": "./",
+ "display": "standalone",
+ "orientation": "any",
+ "background_color": "#111512",
+ "theme_color": "#2c6a44",
+ "lang": "pt-BR",
+ "icons": [
+  {
+   "src": "icon.svg",
+   "sizes": "any",
+   "type": "image/svg+xml",
+   "purpose": "any maskable"
+  }
+ ]
+}
