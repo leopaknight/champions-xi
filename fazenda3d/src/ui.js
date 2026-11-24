@@ -127,6 +127,14 @@ export class UI {
       </div>
       <div id="tip" class="tip" hidden></div>
     </div>
+    <div id="cine" class="cine" hidden>
+      <div class="cine-info"><span class="fl-dot" id="cineDot"></span><span id="cineLive"></span></div>
+      <div class="cine-b">
+        <button class="cine-btn" data-act="cineCam" aria-label="Trocar câmera">${ic('alvo')}<span id="cineCam">Atrás</span></button>
+        <button class="cine-btn" data-act="cineProx" aria-label="Próxima máquina">${ic('seta')}<span>Próxima</span></button>
+        <button class="cine-btn" data-act="cinema" aria-label="Sair da tela cheia">${ic('fechar')}<span>Sair</span></button>
+      </div>
+    </div>
     <section id="view" class="view" hidden></section>
     <aside id="drawer" class="drawer" hidden></aside>
   </main>
@@ -156,7 +164,7 @@ export class UI {
     dia.value = this.model.hoje;
     dia.addEventListener('change', () => { if (!dia.value) return; this.model.hoje = dia.value; this.model.v++; this.model.cache = {}; this.rebuildFarm(); this.toast(`Dia de trabalho: ${fmtDate(dia.value)}`); });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { if (!this.$('#modal').hidden) this.closeModal(); else if (this.drawer) this.closeDrawer(); }
+      if (e.key === 'Escape') { if (this.cinema) this.setCinema(false); else if (!this.$('#modal').hidden) this.closeModal(); else if (this.drawer) this.closeDrawer(); }
     });
   }
 
@@ -201,6 +209,9 @@ export class UI {
     acompanhar(d) { this.acompanhar(d.id); },
     camModo(d) { this.camModo = d.m; this.renderHud(); },
     pararSeguir() { this.pararSeguir(); },
+    cinema() { this.setCinema(!this.cinema); },
+    cineCam() { const ord = ['atras', 'lateral', 'cima', 'livre']; this.camModo = ord[(ord.indexOf(this.camModo) + 1) % ord.length]; this.liveFollow(this.sim.machines); this.renderHud(); },
+    cineProx() { const at = this.sim.machines.filter((x) => x.estado !== 'parado'); if (!at.length) return; const i = at.findIndex((x) => x.id === this.seguir); this.seguir = at[(i + 1) % at.length].id; this.scene.stopFollow(); this.liveFollow(this.sim.machines); },
     importarTrilha(d) { this.forms.importarTrilha(d.id); },
     simPlay() { this.sim.rodando = !this.sim.rodando; this.renderHud(); },
     simVel(d) { this.sim.escala = +d.v; this.renderHud(); if (this.view !== 'mapa') this.renderView(); },
@@ -291,7 +302,7 @@ export class UI {
     const safraCol = this.safraColheita || m.safra;
     switch (cm) {
       case 'natural': {
-        const c1 = new THREE_Color('#3b6f34'), c2 = new THREE_Color('#5f9447'), cj = new THREE_Color('#6f9a45');
+        const c1 = new THREE_Color('#2c5a2b'), c2 = new THREE_Color('#467a38'), cj = new THREE_Color('#5a8a3c');
         fn = (r) => { const reg = farm.regionById.get(r.reg); const h = (hash(r.id) % 1000) / 1000; const base = reg.idade < 2 ? cj : c1; return base.clone().lerp(c2, 0.15 + h * 0.35).getHexString().replace(/^/, '#'); };
         break;
       }
@@ -365,7 +376,7 @@ export class UI {
     const mf = this.seguir ? s.machines.find((x) => x.id === this.seguir) : null;
     if (mf) {
       hf.hidden = false;
-      hf.innerHTML = `<div class="fl-h"><span class="fl-dot" style="background:${TIPOS_EQUIP[mf.tipo]?.cor}"></span><b>${esc(mf.nome)}</b><button class="tb" data-act="pararSeguir">${ic('fechar')}<span>Parar</span></button></div>
+      hf.innerHTML = `<div class="fl-h"><span class="fl-dot" style="background:${TIPOS_EQUIP[mf.tipo]?.cor}"></span><b>${esc(mf.nome)}</b><button class="tb" data-act="cinema" title="Tela cheia">${ic('mapa')}<span>Tela cheia</span></button><button class="tb" data-act="pararSeguir">${ic('fechar')}<span>Parar</span></button></div>
         <div class="fl-l" id="flLive"></div>
         <div class="fl-c">${[['atras', 'Atrás'], ['lateral', 'Lateral'], ['cima', 'De cima'], ['livre', 'Livre']].map(([k, n]) => `<button class="tb ${this.camModo === k ? 'on' : ''}" data-act="camModo" data-m="${k}">${n}</button>`).join('')}</div>`;
       this.liveFollow(s.machines);
@@ -382,8 +393,16 @@ export class UI {
   liveFollow(ms) {
     const el = document.getElementById('flLive');
     const mc = ms.find((x) => x.id === this.seguir);
-    if (!el || !mc) return;
+    if (!mc) return;
     const pr = this.sim.progresso(mc);
+    if (this.cinema) {
+      const nomes = { atras: 'Atrás', lateral: 'Lateral', cima: 'De cima', livre: 'Livre' };
+      const cl = document.getElementById('cineLive');
+      if (cl) cl.innerHTML = `<b>${esc(mc.nome)}</b> · ${mc.rua ? `<span class="mono">${esc(mc.rua)}</span>` : 'manobra'} · ${num(mc.vel, 1)} km/h${pr ? ` · ${pr.feitas}/${pr.total} ruas` : ''}`;
+      const cd = document.getElementById('cineDot'); if (cd) cd.style.background = TIPOS_EQUIP[mc.tipo]?.cor || '#888';
+      const cc = document.getElementById('cineCam'); if (cc) cc.textContent = nomes[this.camModo];
+    }
+    if (!el) return;
     el.innerHTML = `${mc.tarefa ? esc(TAREFA[mc.tarefa]?.nome || mc.tarefa) + ' · ' : ''}${mc.rua ? `rua <b class="mono">${esc(mc.rua)}</b>` : 'manobra / deslocamento'} · <b>${num(mc.vel, 1)}</b> km/h${pr ? ` · ${pr.feitas}/${pr.total} ruas` : ''}`;
   }
 
@@ -410,6 +429,7 @@ export class UI {
   }
 
   onPick(hit, e) {
+    if (this.cinema) { this.$('#cine').classList.toggle('oculto'); return; }
     if (!hit) { if (!this.multi) { this.selecionar([]); this.closeDrawer(); } return; }
     if (hit.tipo === 'rua') {
       if (this.multi || e?.shiftKey || e?.ctrlKey || e?.metaKey) {
@@ -490,16 +510,46 @@ export class UI {
     if (!this.scene.layers.equipamentos) this.scene.setLayer('equipamentos', true);
     this.scene.stopFollow();
     this.scene.flyToXY(mc.x, mc.y, 45, true, 0.6);
-    if (window.innerWidth > 760) this.openDrawer({ tipo: 'equip', id }); else this.closeDrawer();
+    const pequeno = window.innerWidth <= 900 || window.innerHeight <= 560;
+    if (!pequeno) this.openDrawer({ tipo: 'equip', id }); else this.closeDrawer();
+    this.$('#app').classList.add('seguindo');
     this.renderHud();
-    this.toast(`Acompanhando ${mc.nome}. Velocidade da simulação: ${this.sim.escala}×.`);
+    if (pequeno) { this.setCinema(true); this.toast('Tela cheia. Toque na tela para mostrar ou esconder os controles.'); }
+    else this.toast(`Acompanhando ${mc.nome}. Velocidade da simulação: ${this.sim.escala}×.`);
   }
   pararSeguir() {
     this.seguir = null;
     this.scene.stopFollow();
+    this.$('#app').classList.remove('seguindo');
+    if (this.cinema) this.setCinema(false);
     this.renderHud();
     if (this.drawer?.tipo === 'equip') this.renderDrawer();
   }
+  // Tela cheia: só o 3D e um controle mínimo para sair
+  setCinema(on) {
+    this.cinema = on;
+    const app = this.$('#app');
+    app.classList.toggle('cinema', on);
+    const cine = this.$('#cine');
+    if (on) {
+      this._rotulosAntes = this.scene.layers.rotulos;
+      this.scene.setLayer('rotulos', false);
+      this.closeDrawer();
+      cine.hidden = false;
+      cine.classList.remove('oculto');
+      this.liveFollow(this.sim.machines);
+      try { const el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch { /* sem tela cheia nativa */ }
+      try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch { /* ignora */ }
+    } else {
+      if (this._rotulosAntes != null) this.scene.setLayer('rotulos', this._rotulosAntes);
+      cine.hidden = true;
+      try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch { /* ignora */ }
+    }
+    this.scene.followZoom = on ? 0.75 : 1;
+    setTimeout(() => this.scene.resize(), 60);
+    this.renderHud();
+  }
+
   focarManut(id) {
     const mt = this.store.get('manut', id);
     if (!mt) return;

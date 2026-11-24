@@ -452,7 +452,7 @@ export class Scene3D {
   buildRows(farm) {
     const n = farm.rows.length;
     const geo = hedgeGeometry();
-    const mat = detalhe(this.M({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, roughness: 0.7, envMapIntensity: 0.5 }), { escala: 0.5, forca: 0.16, escala2: 2.6, forca2: 0.14 });
+    const mat = detalhe(this.M({ vertexColors: true, flatShading: true, side: THREE.DoubleSide, roughness: 0.85, envMapIntensity: 0.35 }), { escala: 0.5, forca: 0.16, escala2: 2.6, forca2: 0.14 });
     const mesh = new THREE.InstancedMesh(geo, mat, n);
     mesh.castShadow = mesh.receiveShadow = true;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -681,7 +681,7 @@ export class Scene3D {
       o.element.style.display = o.visible ? '' : 'none';
     };
     this.root.traverse(vis);
-    for (const l of this.regionLabels || []) { l.visible = true; l.element.style.display = ''; }
+    for (const l of this.regionLabels || []) { l.visible = show; l.element.style.display = show ? '' : 'none'; }
   }
 
   // seleção de ruas + plantas pé a pé
@@ -1059,7 +1059,11 @@ export class Scene3D {
   // Câmera acompanhando uma máquina: 'atras', 'lateral', 'cima' ou 'livre'
   follow(mc, modo = 'atras') {
     const T = this.W(mc.x, mc.y, 0);
-    this._fh = this._fh == null ? mc.heading : lerpAngle(this._fh, mc.heading, 0.04);
+    const agora = performance.now();
+    const dt = Math.min(0.5, (agora - (this._fT || agora)) / 1000) || 0.016;
+    this._fT = agora;
+    const kPos = 1 - Math.exp(-dt * 4), kAlvo = 1 - Math.exp(-dt * 9);
+    this._fh = this._fh == null ? mc.heading : lerpAngle(this._fh, mc.heading, 1 - Math.exp(-dt * 2.5));
     const dir = new THREE.Vector3(Math.cos(this._fh), 0, -Math.sin(this._fh));
     const alvo = T.clone().add(new THREE.Vector3(0, mc.tipo === 'colhedora' ? 2.5 : 1.3, 0));
     if (modo === 'livre') {
@@ -1068,15 +1072,17 @@ export class Scene3D {
       this.controls.target.copy(alvo);
     } else {
       let off;
+      const z = this.followZoom || 1;
       if (modo === 'lateral') off = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(14).add(new THREE.Vector3(0, 4.5, 0)).add(dir.clone().multiplyScalar(-3));
       else if (modo === 'cima') off = new THREE.Vector3(0, 48, 0).add(dir.clone().multiplyScalar(-4));
       else off = dir.clone().multiplyScalar(mc.tipo === 'colhedora' ? -19 : -15).add(new THREE.Vector3(0, mc.tipo === 'colhedora' ? 9 : 6.5, 0));
-      this.camera.position.lerp(alvo.clone().add(off), 0.07);
-      this.controls.target.lerp(alvo, 0.18);
+      off.multiplyScalar(z);
+      this.camera.position.lerp(alvo.clone().add(off), kPos);
+      this.controls.target.lerp(alvo, kAlvo);
     }
     this.dirty = true;
   }
-  stopFollow() { this._fh = null; }
+  stopFollow() { this._fh = null; this._fT = null; }
 
   updateMarkers(items) {
     if (!this.markerGroup) return;

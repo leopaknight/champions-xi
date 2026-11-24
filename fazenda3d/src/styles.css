@@ -406,3 +406,40 @@ details.tec ul { margin: 8px 0 4px; padding-left: 18px; font-size: 13px; display
   .sim-l { max-height: 110px; }
   #hudSel:has(+ .hud-follow:not([hidden])) { display: none; }
 }
+
+/* tela cheia (acompanhar máquina sem nada por cima) */
+#app.cinema { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+#app.cinema .top, #app.cinema .rail, #app.cinema .bottom, #app.cinema .hud, #app.cinema .drawer, #app.cinema .view { display: none !important; }
+#app.cinema #stage { grid-column: 1 / -1; grid-row: 1 / -1; }
+.cine { position: absolute; z-index: 20; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px)); bottom: max(10px, env(safe-area-inset-bottom, 0px)); display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; pointer-events: none; transition: opacity .25s; }
+.cine.oculto { opacity: 0; }
+.cine.oculto * { pointer-events: none !important; }
+.cine-info { pointer-events: auto; background: rgba(16, 22, 18, .62); color: #fff; backdrop-filter: blur(6px); border-radius: 999px; padding: 6px 12px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cine-info span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.cine-b { display: flex; gap: 6px; pointer-events: auto; }
+.cine-btn { display: inline-flex; align-items: center; gap: 5px; border: 0; background: rgba(16, 22, 18, .62); color: #fff; backdrop-filter: blur(6px); border-radius: 999px; padding: 7px 12px; font-size: 12.5px; }
+.cine-btn .ic { width: 16px; height: 16px; }
+/* celular deitado: interface compacta */
+@media (max-height: 560px) {
+  :root { --top: 44px; --rail: 64px; }
+  .top { gap: 8px; }
+  .brand-t small, .day, .sync { display: none; }
+  .brand-mark { width: 28px; height: 28px; }
+  .mode-b { padding: 4px 10px; font-size: 12px; }
+  .search input { height: 30px; }
+  .nav-b { padding: 5px 2px; font-size: 9.5px; }
+  .hud { padding: 6px; }
+  .hud-card { padding: 5px 8px; font-size: 12px; }
+  .legend { max-width: 280px; }
+  .lg-items { display: none; }
+  .tools .tb span, .tools .tb-l { display: none; }
+  .sim-l { max-height: 90px; }
+  #app.seguindo #hudSel, #app.seguindo .legend, #app.seguindo .sim-l, #app.seguindo .hud-right { display: none; }
+  #app.seguindo .hud-follow { max-width: 420px; }
+  .cine-info { max-width: 50%; }
+}
+@media (max-width: 560px) {
+  .cine { flex-direction: column; align-items: stretch; }
+  .cine-info { max-width: none; }
+  .cine-b { justify-content: flex-end; }
+}
